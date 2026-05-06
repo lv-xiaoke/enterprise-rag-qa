@@ -124,6 +124,50 @@ def fetch_external_data(params_str: str) -> str:
 
 
 @tool
+def generate_consumable_reminder(params_str: str) -> str:
+    """根据 '用户ID,月份' 生成耗材更换提醒和维护建议。"""
+    generate_external_data()
+
+    try:
+        clean_str = params_str.replace('"', '').replace("'", "").replace("}", "").replace("{", "")
+
+        if "," not in clean_str:
+            return "耗材提醒生成失败：参数格式错误，请严格按照 '用户ID,月份' 格式重试，例如 '1001,2025-03'。"
+
+        user_id, month = clean_str.split(",", 1)
+        user_id = user_id.strip()
+        month = month.strip()
+
+        record = external_data[user_id][month]
+
+        def normalize_text(value: str) -> str:
+            return value.replace("\\n", "\n")
+
+        feature = normalize_text(record.get("特征", "暂无用户画像信息"))
+        efficiency = normalize_text(record.get("效率", "暂无清洁效率信息"))
+        consumables = normalize_text(record.get("耗材", "暂无耗材状态信息"))
+        comparison = normalize_text(record.get("对比", "暂无同类用户对比信息"))
+
+        return (
+            f"用户 {user_id} 在 {month} 的耗材与维护提醒：\n"
+            f"用户画像：{feature}\n"
+            f"清洁表现：{efficiency}\n"
+            f"耗材状态：{consumables}\n"
+            f"同类对比：{comparison}\n"
+            "维护建议：优先检查耗材状态中寿命较低、磨损较重或提示急需更换的部件；"
+            "若主刷、边刷、滤网、胶刷、尘盒或水箱相关信息异常，应先清理缠绕物和积尘，"
+            "再根据剩余寿命安排更换。"
+        )
+
+    except KeyError:
+        logger.warning(f"[generate_consumable_reminder]未能检索到用户：{user_id}在{month}的使用记录数据")
+        return f"未查询到用户 {user_id} 在 {month} 的耗材记录，暂时无法生成维护提醒。"
+    except Exception as e:
+        logger.error(f"生成耗材提醒失败: {e}")
+        return "耗材提醒生成失败：参数解析或数据读取异常。"
+
+
+@tool
 def fill_context_for_report(dummy: str = "") -> str:
     """无入参，无返回值，调用后触发中间件自动为报告生成的场景动态注入上下文信息，为后续提示词切换提供上下文信息。调用时 Action Input 请传入空字符串 "" """
     return "fill_context_for_report已调用"

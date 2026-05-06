@@ -4,7 +4,8 @@ from langchain_core.prompts import PromptTemplate
 from model.factory import chat_model
 from utils.prompt_loader import load_system_prompts
 from agent.tools.agent_tools import (rag_summarize, get_weather, get_user_location, get_user_id,
-                                     get_current_month, fetch_external_data, fill_context_for_report)
+                                     get_current_month, fetch_external_data, fill_context_for_report,
+                                     generate_consumable_reminder)
 
 # 注意：原生的 Agent 不直接支持中间件，下面注释掉了 middleware 的导入
 # 如果需要监控，LangChain 中需要通过 Callbacks (回调机制) 来实现
@@ -15,7 +16,8 @@ class ReactAgent:
     def __init__(self):
         # 1. 准备工具列表
         tools = [rag_summarize, get_weather, get_user_location, get_user_id,
-                 get_current_month, fetch_external_data, fill_context_for_report]
+                 get_current_month, fetch_external_data, fill_context_for_report,
+                 generate_consumable_reminder]
 
         # 2. 原生 ReAct 需要一个非常严格的 Prompt 模板
         # 这里将你加载的 system_prompt 和 ReAct 的思维链模板拼接在一起
@@ -44,6 +46,12 @@ Final Answer: the final answer to the original input question
 3. 接着调用 fill_context_for_report 注入上下文。
 4. 最后调用 fetch_external_data (传入刚才获取的 id 和 month) 获取数据。
 5. 根据获取的数据，用 Final Answer 输出最终的报告。
+
+### 工具选择边界 (TOOL SELECTION RULES) ###
+1. 如果用户询问知识库问题、故障排查、选购建议、使用方法，优先调用 rag_summarize。
+2. 如果用户要求完整的个人使用报告，必须按上面的“使用报告”固定流程执行。
+3. 如果用户询问耗材、维护、保养、滤网、边刷、主刷、胶刷、尘盒、水箱或更换提醒，调用 generate_consumable_reminder。
+4. 调用 generate_consumable_reminder 前，如用户没有明确给出用户ID或月份，先分别调用 get_user_id 和 get_current_month，再以 "用户ID,月份" 格式传入。
 
 Begin!
 
