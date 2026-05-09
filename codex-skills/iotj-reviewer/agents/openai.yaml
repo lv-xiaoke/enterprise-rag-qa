@@ -1,0 +1,3 @@
+display_name: IoT-J Reviewer
+short_description: IEEE IoT-J review and decision skill
+default_prompt: Use this skill to evaluate an IEEE Internet of Things Journal manuscript, reviewer packet, response to reviewers, or editorial decision memo.
