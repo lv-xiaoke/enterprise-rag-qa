@@ -19,13 +19,6 @@ APP_TITLE = "企业知识库问答"
 APP_SUBTITLE = "面向员工制度、流程、IT 支持与个人业务数据的智能问答助手"
 KNOWLEDGE_DIR = Path("data/enterprise")
 
-QUICK_QUESTIONS = [
-    ("差旅报销", "差旅报销需要哪些材料？"),
-    ("年假余额", "我还有多少年假？"),
-    ("入职指引", "新员工入职第一周应该完成哪些事项？"),
-    ("生成周报", "根据我的本周项目记录生成周报。"),
-]
-
 MODEL_OPTIONS = [
     rag_conf["chat_model_name"],
     "qwen-plus",
@@ -74,7 +67,7 @@ def inject_custom_css() -> None:
             --purple: #8e5cf7;
             --shadow: 0 18px 45px rgba(60, 64, 67, .14);
             --radius: 26px;
-            --content-width: 800px;
+            --content-width: min(1540px, calc(100vw - 5rem));
             --font: Inter, Roboto, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif;
         }
 
@@ -143,6 +136,7 @@ def inject_custom_css() -> None:
 
         .empty-state {
             padding-top: clamp(4rem, 18vh, 10rem);
+            text-align: center; /* 【新增】让容器内的文本整体居中 */
         }
 
         .eyebrow {
@@ -167,38 +161,68 @@ def inject_custom_css() -> None:
             color: var(--muted);
             font-size: 1rem;
             line-height: 1.65;
-            margin: 1rem 0 1.4rem;
+            margin: 1rem auto 1.4rem; /* 【关键修改】把 0 改为 auto，让这个设定了宽度的文字块整体居中 */
             max-width: 36rem;
+            text-align: center; /* 【新增】确保文字在块的内部也是居中对齐的 */
         }
 
         .quick-wrap [data-testid="stHorizontalBlock"] {
             gap: .6rem;
         }
 
+        [data-testid="stMain"] div[data-testid="stButton"] > button,
         .quick-wrap div[data-testid="stButton"] > button {
-            background: var(--surface);
-            border: 1px solid var(--line);
-            border-radius: 999px;
+            background: #8a9097;
+            border: 1px solid #8a9097;
+            border-radius: 10px;
             box-shadow: none;
-            color: var(--text-soft);
+            color: #ffffff !important;
             font-size: .88rem;
             font-weight: 560;
             min-height: 2.55rem;
-            padding: .3rem .9rem;
+            padding: .35rem 1rem;
+            position: relative;
             transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
             width: 100%;
         }
 
+        .quick-wrap div[data-testid="stButton"] > button::after {
+            border-bottom: 7px solid transparent;
+            border-right: 9px solid #8a9097;
+            bottom: 4px;
+            content: "";
+            height: 0;
+            left: -7px;
+            position: absolute;
+            width: 0;
+        }
+
+        [data-testid="stMain"] div[data-testid="stButton"] > button *,
+        [data-testid="stMain"] div[data-testid="stButton"] > button p,
+        [data-testid="stMain"] div[data-testid="stButton"] > button span,
+        [data-testid="stMain"] div[data-testid="stButton"] > button div,
+        .quick-wrap div[data-testid="stButton"] > button *,
+        .quick-wrap div[data-testid="stButton"] > button p {
+            color: #ffffff !important;
+            opacity: 1 !important;
+        }
+
+        [data-testid="stMain"] div[data-testid="stButton"] > button:hover,
         .quick-wrap div[data-testid="stButton"] > button:hover {
-            background: #f6fafe;
-            border-color: #c7dcff;
-            box-shadow: 0 5px 16px rgba(26, 115, 232, .08);
-            color: var(--blue);
+            background: #747b84;
+            border-color: #747b84;
+            box-shadow: 0 6px 18px rgba(60, 64, 67, .16);
+            color: #ffffff !important;
+        }
+
+        [data-testid="stMain"] div[data-testid="stButton"] > button:hover::after,
+        .quick-wrap div[data-testid="stButton"] > button:hover::after {
+            border-right-color: #747b84;
         }
 
         [data-testid="stSidebar"] {
             background: var(--sidebar-bg);
-            border-right: 1px solid var(--line);
+            border-right: 1px solid #000000;
         }
 
         [data-testid="stSidebar"] > div {
@@ -265,7 +289,13 @@ def inject_custom_css() -> None:
             box-shadow: none;
             margin: 0 auto 1.35rem;
             max-width: var(--content-width);
+            width: 100%; /* 【新增】强制撑满变量定义的宽度 */
             padding: 0;
+        }
+
+        /* 【新增】确保助手的头像和回答靠左对齐 */
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) {
+            justify-content: flex-start; 
         }
 
         [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"],
@@ -278,6 +308,12 @@ def inject_custom_css() -> None:
 
         [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p:last-child {
             margin-bottom: 0;
+        }
+
+        [data-testid="stChatMessage"] [data-testid="stChatMessageContent"],
+        [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] {
+            max-width: 100%;
+            width: 100%;
         }
 
         [data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] h1,
@@ -339,14 +375,16 @@ def inject_custom_css() -> None:
             background: #f1f3f4;
             border-radius: 20px;
             margin-left: auto;
-            max-width: min(620px, 82%);
+            max-width: min(860px, 76%);
             padding: .78rem 1rem;
         }
 
         [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] {
             background: transparent;
             border: 0;
+            max-width: 100%;
             padding-top: .18rem;
+            width: 100%;
         }
 
         details[data-testid="stExpander"] {
@@ -391,24 +429,34 @@ def inject_custom_css() -> None:
         }
 
         [data-testid="stChatInput"] {
-            background: linear-gradient(180deg, rgba(248, 249, 250, 0), var(--app-bg) 34%);
+            background: transparent !important; /* 【关键修改】强制背景透明，去掉黑色 */
             border-top: 0;
             padding: .9rem max(1rem, calc((100vw - var(--content-width)) / 2)) 1.05rem;
+            bottom: 0;
+            position: fixed;
+            z-index: 99;
         }
 
         [data-testid="stChatInput"] > div {
             background: var(--surface);
-            border: 1px solid #dfe4ea;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
+            border: 1px solid #000000; /* 【关键修改】边框改为黑色 */
+            border-radius: 18px;
+            box-shadow: none;
             margin: 0 auto;
-            max-width: var(--content-width);
+            width: 75%;
+            max-width: 1200px;
             transition: border-color 160ms ease, box-shadow 160ms ease;
         }
 
+        /* 【可选优化】鼠标点击输入框时的边框颜色（原本是浅灰色，现在也保持黑色或加粗阴影） */
         [data-testid="stChatInput"] > div:focus-within {
-            border-color: rgba(66, 133, 244, .62);
-            box-shadow: 0 18px 45px rgba(60, 64, 67, .14), 0 0 0 4px rgba(142, 92, 247, .14), 0 0 28px rgba(66, 133, 244, .18);
+            border-color: #000000;
+            box-shadow: 0 0 0 1px #000000; /* 聚焦时稍微加深一点视觉效果 */
+        }
+
+        [data-testid="stChatInput"] > div:focus-within {
+            border-color: #b8c1cc;
+            box-shadow: none;
         }
 
         [data-testid="stChatInput"] textarea,
@@ -456,6 +504,19 @@ def inject_custom_css() -> None:
                 padding-right: .75rem;
             }
         }
+
+        section[data-testid="stMain"] div[data-testid="stButton"] > button,
+        section[data-testid="stMain"] div[data-testid="stButton"] > button *,
+        section[data-testid="stMain"] div[data-testid="stButton"] > button p,
+        [data-testid="stMain"] div[data-testid="stButton"] > button,
+        [data-testid="stMain"] div[data-testid="stButton"] > button *,
+        [data-testid="stMain"] div[data-testid="stButton"] > button p {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            opacity: 1 !important;
+            font-weight: 700 !important;
+            text-shadow: 0 1px 1px rgba(0, 0, 0, .28);
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -502,10 +563,6 @@ def export_messages_as_markdown(messages: list[dict]) -> str:
             lines.append("")
 
     return "\n".join(lines)
-
-
-def queue_prompt(prompt: str) -> None:
-    st.session_state.pending_prompt = prompt
 
 
 def reset_conversation() -> None:
@@ -590,7 +647,7 @@ def render_header() -> None:
     st.markdown(
         """
         <div class="app-topbar">
-            <div class="brand">Gemini-style Enterprise KB</div>
+            <div class="brand">企业知识库问答系统</div>
             <div class="status-pill">✦ RAG Ready</div>
         </div>
         """,
@@ -609,20 +666,6 @@ def render_empty_state() -> None:
         """,
         unsafe_allow_html=True,
     )
-
-    st.markdown('<div class="quick-wrap">', unsafe_allow_html=True)
-    cols = st.columns(len(QUICK_QUESTIONS))
-    for index, (label, question) in enumerate(QUICK_QUESTIONS):
-        with cols[index]:
-            st.button(
-                label,
-                key=f"quick-question-{index}",
-                help=question,
-                on_click=queue_prompt,
-                args=(question,),
-            )
-    st.markdown("</div>", unsafe_allow_html=True)
-
 
 def normalize_sources(raw_docs: list) -> list[dict[str, str]]:
     sources = []
