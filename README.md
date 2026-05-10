@@ -79,6 +79,16 @@ python -m rag.vector_store
 streamlit run app.py
 ```
 
+## 运行效果展示
+
+![RAG 示例截图 1](RAG_1.png)
+
+![RAG 示例截图 2](RAG_2.png)
+
+![RAG 示例截图 3](RAG_3.png)
+
+![RAG 示例截图 4](RAG_4.png)
+
 ## 示例问题
 
 ```text
