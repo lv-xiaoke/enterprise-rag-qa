@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh repo *)",
+      "WebSearch",
+      "Bash(npx skills *)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app.py', encoding='utf-8'\\).read\\(\\)\\); print\\('Syntax OK'\\)\")",
+      "Bash(timeout 15 .venv/Scripts/python -m streamlit run app.py --server.headless true)",
+      "Bash(taskkill //F //IM streamlit.exe)",
+      "Bash(taskkill //F //IM python.exe //FI \"WINDOWTITLE eq Streamlit*\")"
+    ]
+  }
+}
