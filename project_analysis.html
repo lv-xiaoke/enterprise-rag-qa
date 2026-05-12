@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LangChain ReAct Agent 项目深度解析</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1b26;
+    --surface2: #24253a;
+    --border: #2f3154;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --accent: #7c3aed;
+    --accent-light: #a78bfa;
+    --green: #3fb950;
+    --orange: #d2991d;
+    --red: #f85149;
+    --blue: #58a6ff;
+    --cyan: #39c5cf;
+    --pink: #db61a2;
+    --radius: 10px;
+    --font: "SF Mono", "Cascadia Code", "JetBrains Mono", "Fira Code", "Consolas", monospace;
+    --font-ui: "Inter", "SF Pro Display", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    line-height: 1.7;
+    padding: 2rem 1.5rem;
+  }
+
+  .container { max-width: 1100px; margin: 0 auto; }
+
+  /* Header */
+  .hero {
+    text-align: center;
+    padding: 4rem 0 3rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 3rem;
+  }
+
+  .hero .badge {
+    display: inline-block;
+    background: var(--surface2);
+    color: var(--accent-light);
+    font-size: .82rem;
+    font-weight: 600;
+    padding: .35rem 1rem;
+    border-radius: 99px;
+    letter-spacing: .04em;
+    margin-bottom: 1.2rem;
+    border: 1px solid rgba(124,58,237,.3);
+  }
+
+  .hero h1 {
+    font-size: 2.8rem;
+    font-weight: 750;
+    letter-spacing: -.02em;
+    background: linear-gradient(135deg, #e2e8f0 0%, var(--accent-light) 50%, #c084fc 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    line-height: 1.2;
+    margin-bottom: .8rem;
+  }
+
+  .hero p {
+    color: var(--text-dim);
+    font-size: 1.1rem;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  /* Navigation */
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2rem;
+    margin-bottom: 3rem;
+  }
+
+  .toc h2 { color: var(--accent-light); font-size: 1.1rem; margin-bottom: 1rem; }
+  .toc ol { padding-left: 1.5rem; columns: 2; column-gap: 2rem; }
+  .toc li { margin-bottom: .35rem; break-inside: avoid; }
+  .toc a { color: var(--blue); text-decoration: none; font-size: .9rem; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* Sections */
+  section {
+    margin-bottom: 4rem;
+    scroll-margin-top: 2rem;
+  }
+
+  h2 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #e6edf3;
+    margin-bottom: 1.2rem;
+    padding-bottom: .6rem;
+    border-bottom: 2px solid var(--border);
+    letter-spacing: -.01em;
+  }
+
+  h3 {
+    font-size: 1.3rem;
+    font-weight: 650;
+    color: var(--accent-light);
+    margin: 2rem 0 .8rem;
+  }
+
+  h4 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #c9d1d9;
+    margin: 1.5rem 0 .6rem;
+  }
+
+  p { margin-bottom: 1rem; color: var(--text); }
+
+  /* Code blocks */
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.2rem 1.4rem;
+    overflow-x: auto;
+    font-family: var(--font);
+    font-size: .84rem;
+    line-height: 1.55;
+    margin: 1rem 0 1.5rem;
+    tab-size: 4;
+  }
+
+  code {
+    font-family: var(--font);
+    background: var(--surface2);
+    padding: .15em .4em;
+    border-radius: 4px;
+    font-size: .88em;
+    color: var(--orange);
+  }
+
+  pre code {
+    background: transparent;
+    padding: 0;
+    color: var(--text);
+    font-size: inherit;
+  }
+
+  /* Syntax highlighting */
+  .kw { color: var(--pink); }
+  .str { color: var(--green); }
+  .cm { color: var(--text-dim); font-style: italic; }
+  .fn { color: var(--blue); }
+  .tp { color: var(--cyan); }
+  .num { color: var(--orange); }
+
+  /* Info boxes */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 1.2rem 1.4rem;
+    margin: 1.5rem 0;
+  }
+
+  .callout.info  { border-left-color: var(--blue); }
+  .callout.warn  { border-left-color: var(--orange); }
+  .callout.tip   { border-left-color: var(--green); }
+  .callout-title { font-weight: 650; font-size: .9rem; margin-bottom: .4rem; }
+  .callout.info  .callout-title { color: var(--blue); }
+  .callout.warn  .callout-title { color: var(--orange); }
+  .callout.tip   .callout-title { color: var(--green); }
+
+  /* Architecture diagram */
+  .arch-diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2rem;
+    margin: 1.5rem 0;
+    font-family: var(--font);
+    font-size: .78rem;
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--text);
+  }
+
+  /* Flow steps */
+  .flow-steps {
+    counter-reset: step;
+    list-style: none;
+    padding: 0;
+  }
+  .flow-steps li {
+    counter-increment: step;
+    position: relative;
+    padding: .8rem 0 .8rem 3rem;
+    margin-bottom: .5rem;
+  }
+  .flow-steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: .7rem;
+    width: 1.8rem;
+    height: 1.8rem;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .8rem;
+    font-weight: 700;
+    font-family: var(--font-ui);
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.2rem 0;
+    font-size: .9rem;
+  }
+
+  th {
+    background: var(--surface2);
+    color: var(--accent-light);
+    font-weight: 650;
+    text-align: left;
+    padding: .7rem 1rem;
+    border: 1px solid var(--border);
+  }
+
+  td {
+    padding: .6rem 1rem;
+    border: 1px solid var(--border);
+  }
+
+  tr:nth-child(even) td { background: rgba(255,255,255,.01); }
+
+  /* File path tags */
+  .file-path {
+    display: inline-block;
+    background: var(--surface2);
+    color: var(--cyan);
+    font-family: var(--font);
+    font-size: .82rem;
+    padding: .2rem .6rem;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    body { padding: 1rem .8rem; }
+    .hero h1 { font-size: 2rem; }
+    .toc ol { columns: 1; }
+  }
+
+  /* SVG in arch diagram */
+  .arch-svg {
+    display: block;
+    margin: 1.5rem auto;
+    max-width: 100%;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- ==================== HERO ==================== -->
+<div class="hero">
+  <div class="badge">Educational Deep Dive</div>
+  <h1>LangChain ReAct Agent<br>项目深度解析</h1>
+  <p>从零理解企业级 RAG + ReAct Agent 的架构设计、技术原理与代码实现</p>
+</div>
+
+<!-- ==================== TOC ==================== -->
+<nav class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li><a href="#s1">项目全景概览</a></li>
+    <li><a href="#s2">核心概念：LangChain 框架</a></li>
+    <li><a href="#s3">核心概念：ReAct Agent 模式</a></li>
+    <li><a href="#s4">核心概念：RAG 检索增强生成</a></li>
+    <li><a href="#s5">核心概念：Middleware 中间件系统</a></li>
+    <li><a href="#s6">核心概念：LangGraph 运行时</a></li>
+    <li><a href="#s7">核心概念：Streamlit 对话界面</a></li>
+    <li><a href="#s8">代码详解：项目入口 app.py</a></li>
+    <li><a href="#s9">代码详解：ReAct Agent 引擎</a></li>
+    <li><a href="#s10">代码详解：工具系统</a></li>
+    <li><a href="#s11">代码详解：中间件</a></li>
+    <li><a href="#s12">代码详解：RAG 服务层</a></li>
+    <li><a href="#s13">代码详解：向量存储</a></li>
+    <li><a href="#s14">代码详解：模型工厂</a></li>
+    <li><a href="#s15">代码详解：配置与工具模块</a></li>
+    <li><a href="#s16">完整执行流程追踪</a></li>
+    <li><a href="#s17">Prompt 工程设计</a></li>
+    <li><a href="#s18">设计模式总结</a></li>
+  </ol>
+</nav>
+
+<!-- ==================== S1 ==================== -->
+<section id="s1">
+  <h2>1. 项目全景概览</h2>
+
+  <h3>1.1 这是什么项目？</h3>
+  <p>
+    这是一个<strong>企业知识库智能助手</strong>，基于 LangChain + ReAct Agent + Chroma 向量数据库构建。
+    它可以回答企业制度问题、查询员工模拟数据、自动生成周报，并通过 Streamlit 提供流式对话界面。
+  </p>
+
+  <h3>1.2 技术栈一览</h3>
+  <table>
+    <tr><th>层级</th><th>技术</th><th>版本</th><th>作用</th></tr>
+    <tr><td>LLM 框架</td><td>LangChain</td><td>0.3.7</td><td>核心 Agent 框架，管理 LLM 调用链</td></tr>
+    <tr><td>Agent 引擎</td><td>LangGraph</td><td>0.2.50</td><td>构建 Agent 工作流、中间件系统</td></tr>
+    <tr><td>大模型</td><td>通义千问 (DashScope)</td><td>1.20.14</td><td>ChatTongyi 对话模型 + text-embedding-v4 嵌入模型</td></tr>
+    <tr><td>向量数据库</td><td>Chroma</td><td>0.5.15</td><td>轻量级向量存储与相似度检索</td></tr>
+    <tr><td>文本切分</td><td>LangChain Text Splitters</td><td>0.3.2</td><td>递归字符分割器，将文档切分为语义块</td></tr>
+    <tr><td>前端</td><td>Streamlit</td><td>1.40.1</td><td>快速构建 Web 对话界面</td></tr>
+    <tr><td>文档解析</td><td>PyPDF</td><td>5.1.0</td><td>PDF 文档读取</td></tr>
+    <tr><td>配置管理</td><td>PyYAML</td><td>6.0.2</td><td>YAML 配置文件解析</td></tr>
+  </table>
+
+  <h3>1.3 项目目录结构</h3>
+  <pre>
+LangChain-ReAct-Agent-main/
+├── <span class="str">app.py</span>                         # Streamlit 应用入口
+├── <span class="str">requirements.txt</span>               # 依赖清单
+│
+├── <span class="str">agent/</span>
+│   ├── <span class="str">react_agent.py</span>             # ReAct Agent 创建与执行逻辑 ★
+│   └── <span class="str">tools/</span>
+│       ├── <span class="str">agent_tools.py</span>          # 5 个企业场景工具函数 ★
+│       └── <span class="str">middleware.py</span>           # 3 个中间件(监控/日志/动态提示词)
+│
+├── <span class="str">rag/</span>
+│   ├── <span class="str">vector_store.py</span>            # 文档加载→切分→向量化→存储
+│   └── <span class="str">rag_service.py</span>            # RAG 检索+总结服务
+│
+├── <span class="str">model/</span>
+│   └── <span class="str">factory.py</span>                # ChatModel + Embedding 工厂
+│
+├── <span class="str">utils/</span>
+│   ├── <span class="str">config_handler.py</span>          # YAML 配置加载器
+│   ├── <span class="str">prompt_loader.py</span>          # Prompt 文件加载
+│   ├── <span class="str">file_handler.py</span>           # PDF/TXT 文档加载 + MD5 去重
+│   ├── <span class="str">logger_handler.py</span>         # 日志系统
+│   └── <span class="str">path_tool.py</span>              # 项目根路径工具
+│
+├── <span class="str">config/</span>
+│   ├── <span class="str">agent.yml</span>                 # Agent 配置(外部数据路径)
+│   ├── <span class="str">chroma.yml</span>               # Chroma 向量库配置
+│   ├── <span class="str">rag.yml</span>                  # 模型名称配置
+│   └── <span class="str">prompts.yml</span>              # Prompt 文件路径
+│
+├── <span class="str">prompts/</span>
+│   ├── <span class="str">main_prompt.txt</span>          # Agent 主系统提示词
+│   ├── <span class="str">rag_summarize.txt</span>        # RAG 总结提示词模板
+│   └── <span class="str">report_prompt.txt</span>        # 周报生成提示词
+│
+└── <span class="str">data/</span>
+    ├── <span class="str">enterprise/</span>               # 企业制度知识库文档(TXT/PDF)
+    └── <span class="str">enterprise_external/</span>     # 员工模拟结构化数据(CSV)
+</pre>
+
+  <h3>1.4 系统架构图</h3>
+  <svg class="arch-svg" viewBox="0 0 1050 620" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7c3aed"/><stop offset="100%" stop-color="#a78bfa"/></linearGradient>
+      <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#3fb950"/><stop offset="100%" stop-color="#7ee787"/></linearGradient>
+      <linearGradient id="g3" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#d2991d"/><stop offset="100%" stop-color="#e3b341"/></linearGradient>
+      <linearGradient id="g4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#58a6ff"/><stop offset="100%" stop-color="#79c0ff"/></linearGradient>
+      <linearGradient id="g5" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#db61a2"/><stop offset="100%" stop-color="#f778ba"/></linearGradient>
+      <filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-opacity="0.2"/></filter>
+    </defs>
+
+    <!-- Background -->
+    <rect width="1050" height="620" rx="14" fill="#1a1b26"/>
+
+    <!-- User -->
+    <rect x="50" y="270" width="90" height="50" rx="10" fill="url(#g1)" filter="url(#shadow)"/>
+    <text x="95" y="300" font-size="14" fill="white" text-anchor="middle" font-weight="bold">用户</text>
+
+    <!-- Arrow user → streamlit -->
+    <line x1="140" y1="295" x2="200" y2="190" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow)"/>
+    <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#8b949e"/></marker></defs>
+
+    <!-- Streamlit -->
+    <rect x="200" y="155" width="120" height="70" rx="10" fill="url(#g5)" filter="url(#shadow)"/>
+    <text x="260" y="188" font-size="12" fill="white" text-anchor="middle" font-weight="bold">Streamlit UI</text>
+    <text x="260" y="206" font-size="10" fill="rgba(255,255,255,.7)" text-anchor="middle">app.py</text>
+
+    <!-- Arrow streamlit→agent -->
+    <line x1="320" y1="190" x2="400" y2="190" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- ReactAgent -->
+    <rect x="400" y="120" width="170" height="80" rx="10" fill="url(#g1)" filter="url(#shadow)"/>
+    <text x="485" y="155" font-size="13" fill="white" text-anchor="middle" font-weight="bold">ReactAgent</text>
+    <text x="485" y="173" font-size="10" fill="rgba(255,255,255,.7)" text-anchor="middle">create_react_agent()</text>
+    <text x="485" y="189" font-size="10" fill="rgba(255,255,255,.7)" text-anchor="middle">AgentExecutor.stream()</text>
+
+    <!-- Arrow agent→middleware -->
+    <line x1="570" y1="155" x2="640" y2="100" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- Middleware -->
+    <rect x="640" y="65" width="160" height="70" rx="10" fill="#24253a" stroke="#a78bfa" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="720" y="92" font-size="12" fill="#a78bfa" text-anchor="middle" font-weight="bold">Middleware 中间件</text>
+    <text x="720" y="110" font-size="9" fill="#8b949e" text-anchor="middle">@wrap_tool_call</text>
+    <text x="720" y="124" font-size="9" fill="#8b949e" text-anchor="middle">@before_model / @dynamic_prompt</text>
+
+    <!-- Arrow agent→tools -->
+    <line x1="485" y1="200" x2="485" y2="260" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- Tools box -->
+    <rect x="400" y="260" width="170" height="100" rx="10" fill="url(#g2)" filter="url(#shadow)"/>
+    <text x="485" y="285" font-size="12" fill="white" text-anchor="middle" font-weight="bold">五类工具</text>
+    <text x="485" y="303" font-size="9" fill="rgba(255,255,255,.8)" text-anchor="middle">rag_summarize</text>
+    <text x="485" y="317" font-size="9" fill="rgba(255,255,255,.8)" text-anchor="middle">get_employee_id / department</text>
+    <text x="485" y="331" font-size="9" fill="rgba(255,255,255,.8)" text-anchor="middle">fetch_employee_records</text>
+    <text x="485" y="345" font-size="9" fill="rgba(255,255,255,.8)" text-anchor="middle">generate_weekly_report_context</text>
+
+    <!-- Arrow tools→RAG -->
+    <line x1="400" y1="310" x2="310" y2="370" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- RAG Service -->
+    <rect x="180" y="350" width="130" height="70" rx="10" fill="url(#g3)" filter="url(#shadow)"/>
+    <text x="245" y="380" font-size="12" fill="white" text-anchor="middle" font-weight="bold">RAG 服务</text>
+    <text x="245" y="398" font-size="9" fill="rgba(255,255,255,.8)" text-anchor="middle">RagSummarizeService</text>
+    <text x="245" y="412" font-size="9" fill="rgba(255,255,255,.8)" text-anchor="middle">LCEL 链式调用</text>
+
+    <!-- Arrow RAG→Vector -->
+    <line x1="245" y1="420" x2="245" y2="470" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- Chroma -->
+    <rect x="150" y="470" width="190" height="70" rx="10" fill="url(#g4)" filter="url(#shadow)"/>
+    <text x="245" y="500" font-size="12" fill="white" text-anchor="middle" font-weight="bold">Chroma 向量数据库</text>
+    <text x="245" y="518" font-size="9" fill="rgba(255,255,255,.8)" text-anchor="middle">embedding → 存储 → top-k 检索</text>
+    <text x="245" y="532" font-size="9" fill="rgba(255,255,255,.8)" text-anchor="middle">RecursiveCharacterTextSplitter</text>
+
+    <!-- Arrow CSV→tools -->
+    <rect x="700" y="360" width="130" height="50" rx="8" fill="#24253a" stroke="#d2991d" stroke-width="1"/>
+    <text x="765" y="390" font-size="11" fill="#d2991d" text-anchor="middle" font-weight="bold">CSV 员工数据</text>
+
+    <line x1="700" y1="385" x2="570" y2="330" stroke="#8b949e" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow)"/>
+
+    <!-- Arrow LLM -->
+    <rect x="820" y="230" width="140" height="50" rx="8" fill="url(#g1)" filter="url(#shadow)"/>
+    <text x="890" y="258" font-size="12" fill="white" text-anchor="middle" font-weight="bold">通义千问 LLM</text>
+    <text x="890" y="274" font-size="9" fill="rgba(255,255,255,.7)" text-anchor="middle">qwen-max / DashScope</text>
+
+    <line x1="570" y1="180" x2="820" y2="250" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- Labels -->
+    <text x="30" y="590" font-size="11" fill="#8b949e">数据流向：用户提问 → Streamlit → ReactAgent → 工具调用 → RAG/CSV → LLM → 回答流式返回</text>
+  </svg>
+
+  <h3>1.5 核心能力矩阵</h3>
+  <table>
+    <tr><th>场景</th><th>触发工具</th><th>数据源</th><th>输出</th></tr>
+    <tr><td>制度问答</td><td>rag_summarize</td><td>Chroma 知识库</td><td>基于制度的回答</td></tr>
+    <tr><td>年假查询</td><td>get_employee_id → fetch_employee_records</td><td>CSV 模拟数据</td><td>年假余额</td></tr>
+    <tr><td>报销状态</td><td>get_employee_id → fetch_employee_records</td><td>CSV 模拟数据</td><td>报销进度</td></tr>
+    <tr><td>项目进展</td><td>get_employee_id → fetch_employee_records</td><td>CSV 模拟数据</td><td>项目状态</td></tr>
+    <tr><td>周报生成</td><td>get_employee_id → get_employee_department → generate_weekly_report_context → fetch_employee_records</td><td>CSV 模拟数据</td><td>结构化中文周报</td></tr>
+    <tr><td>入职指引</td><td>rag_summarize + fetch_employee_records</td><td>Chroma + CSV</td><td>制度+个人待办</td></tr>
+  </table>
+</section>
+
+<!-- ==================== S2 ==================== -->
+<section id="s2">
+  <h2>2. 核心概念：LangChain 框架</h2>
+
+  <h3>2.1 LangChain 是什么？</h3>
+  <p>
+    LangChain 是一个用于构建 <strong>LLM（大语言模型）驱动应用</strong>的开发框架。
+    它的核心思想是将 LLM 与外部的数据源、工具、记忆等组件连接起来，形成可编排的"链"（Chain）和"智能体"（Agent）。
+  </p>
+
+  <h3>2.2 本项目使用的 LangChain 核心组件</h3>
+
+  <h4>2.2.1 ChatModel（聊天模型）</h4>
+  <p>ChatModel 是 LangChain 对 LLM 的统一抽象。本项目中使用了阿里通义千问的 <code>ChatTongyi</code>：</p>
+  <pre><span class="kw">from</span> langchain_community.chat_models.tongyi <span class="kw">import</span> ChatTongyi
+
+chat_model = ChatTongyi(model=<span class="str">"qwen-max"</span>)</pre>
+  <div class="callout info">
+    <div class="callout-title">原理说明</div>
+    ChatTongyi 封装了阿里 DashScope API，实现了 LangChain 的 BaseChatModel 接口。这意味着它可以被 LangChain 的任何 Agent、Chain 直接使用，而不需要关心底层 API 细节。
+  </div>
+
+  <h4>2.2.2 Embeddings（嵌入模型）</h4>
+  <p>Embedding 模型将文本转换为高维向量（一组浮点数），语义相近的文本向量距离也相近：</p>
+  <pre><span class="kw">from</span> langchain_community.embeddings <span class="kw">import</span> DashScopeEmbeddings
+
+embed_model = DashScopeEmbeddings(model=<span class="str">"text-embedding-v4"</span>)</pre>
+
+  <h4>2.2.3 Document（文档对象）</h4>
+  <p>LangChain 中的 <code>Document</code> 是一个标准化的数据结构，包含两个核心字段：</p>
+  <pre><span class="kw">from</span> langchain_core.documents <span class="kw">import</span> Document
+
+<span class="cm"># Document 的结构</span>
+Document(
+    page_content=<span class="str">"实际文本内容..."</span>,  <span class="cm"># 文本正文</span>
+    metadata={<span class="str">"source"</span>: <span class="str">"file.pdf"</span>, <span class="str">"page"</span>: <span class="num">3</span>}  <span class="cm"># 元数据</span>
+)</pre>
+
+  <h4>2.2.4 PromptTemplate（提示词模板）</h4>
+  <p>支持变量插值的提示词模板，将动态数据注入固定结构：</p>
+  <pre><span class="kw">from</span> langchain_core.prompts <span class="kw">import</span> PromptTemplate
+
+template = PromptTemplate.from_template(
+    <span class="str">"基于以下资料回答问题：{context}\n问题：{input}"</span>
+)
+<span class="cm"># 调用时传入变量</span>
+result = template.invoke({<span class="str">"context"</span>: <span class="str">"..."</span>, <span class="str">"input"</span>: <span class="str">"..."</span>})</pre>
+
+  <h4>2.2.5 StrOutputParser（字符串输出解析器）</h4>
+  <p>最简单的输出解析器，将 LLM 返回的 <code>AIMessage</code> 对象提取为纯字符串：</p>
+  <pre><span class="kw">from</span> langchain_core.output_parsers <span class="kw">import</span> StrOutputParser
+<span class="cm"># LLM 返回 AIMessage(content="hello") → StrOutputParser → "hello"</span></pre>
+
+  <h4>2.2.6 LCEL（LangChain Expression Language）</h4>
+  <p>使用 <code>|</code>（管道操作符）连接组件，形成可执行链：</p>
+  <pre>chain = prompt_template | chat_model | StrOutputParser()
+<span class="cm"># 数据流动：prompt → LLM → 字符串</span>
+result = chain.invoke({<span class="str">"input"</span>: <span class="str">"什么是RAG？"</span>})</pre>
+  <div class="callout tip">
+    <div class="callout-title">LCEL 的关键优势</div>
+    LCEL 链式调用是 LangChain 最优雅的设计之一。它自动处理流式输出（stream）、异步调用（async）、批处理（batch）等场景，无需手动编写这些逻辑。
+  </div>
+</section>
+
+<!-- ==================== S3 ==================== -->
+<section id="s3">
+  <h2>3. 核心概念：ReAct Agent 模式</h2>
+
+  <h3>3.1 ReAct = Reasoning + Acting</h3>
+  <p>
+    ReAct（Reasoning + Acting）是 2022 年由 Google Research 和普林斯顿大学提出的论文模式。
+    核心思想是让 LLM <strong>交替进行"思考"和"行动"</strong>，通过调用外部工具获取信息，从而解决仅凭模型自身知识无法准确回答的问题。
+  </p>
+
+  <h3>3.2 ReAct 循环公式</h3>
+  <pre>
+Question: 用户输入的问题
+Thought: 我应该先做什么？
+Action: 要调用的工具名称
+Action Input: 传给工具的参数
+Observation: 工具返回的结果
+  ↓ (重复 N 次，直到有足够信息)
+Thought: 我现在有足够的信息回答问题了
+Final Answer: 最终回答</pre>
+
+  <h3>3.3 实际执行示例</h3>
+  <p>用户问："我还有多少年假？"</p>
+  <pre>
+<span class="cm">=== 第 1 轮 ===</span>
+<span class="kw">Thought:</span> 用户想知道自己的年假余额。我需要先获取员工ID，再查询年假数据。
+<span class="kw">Action:</span> get_employee_id
+<span class="kw">Action Input:</span> ""
+<span class="kw">Observation:</span> E1003
+
+<span class="cm">=== 第 2 轮 ===</span>
+<span class="kw">Thought:</span> 已获取员工ID为E1003，现在查询年假余额。
+<span class="kw">Action:</span> fetch_employee_records
+<span class="kw">Action Input:</span> E1003,leave_balance
+<span class="kw">Observation:</span> 剩余年假：12 天。
+
+<span class="cm">=== 第 3 轮 ===</span>
+<span class="kw">Thought:</span> 我已获得年假数据，可以给出最终答案。
+<span class="kw">Final Answer:</span> 根据系统记录，您当前剩余年假为 12 天。</pre>
+
+  <h3>3.4 create_react_agent 的内部机制</h3>
+  <p>本项目使用 LangGraph 提供的 <code>create_react_agent</code> 函数。其内部原理：</p>
+  <ol class="flow-steps">
+    <li><strong>将工具描述注入 Prompt</strong>：每个 <code>@tool</code> 的 docstring 被自动提取为工具描述，嵌入到 ReAct 模板中</li>
+    <li><strong>构建 LangGraph 状态图</strong>：创建一个包含 "agent" 和 "tools" 两个节点的有向图</li>
+    <li><strong>Agent 节点</strong>：调用 LLM，根据 Prompt 和历史消息生成下一步的 Action 或 Final Answer</li>
+    <li><strong>Tools 节点</strong>：解析 Agent 的输出，如果包含 Action 则执行对应工具，将结果作为 Observation 追加到消息历史</li>
+    <li><strong>循环条件</strong>：如果 LLM 输出了 Final Answer，则终止循环；否则继续回到 Agent 节点</li>
+  </ol>
+
+  <div class="callout info">
+    <div class="callout-title">create_react_agent vs 手写 ReAct</div>
+    <code>create_react_agent</code> 是 LangGraph 对 ReAct 模式的高度封装。它内部处理了：状态管理（AgentState）、工具路由、解析错误处理、中间件集成、流式输出等。如果手写，需要数百行代码。
+  </div>
+
+  <h3>3.5 AgentExecutor</h3>
+  <p><code>AgentExecutor</code> 是对 Agent 的包装，提供了额外的控制能力：</p>
+  <ul style="padding-left:1.5rem;margin:1rem 0;">
+    <li><code>verbose=True</code>：打印详细的执行日志</li>
+    <li><code>handle_parsing_errors</code>：当 LLM 输出格式不符合 ReAct 规范时，向 LLM 发送修正提示，而不是直接崩溃</li>
+    <li><code>stream()</code>：流式返回执行结果，实现打字机效果</li>
+  </ul>
+</section>
+
+<!-- ==================== S4 ==================== -->
+<section id="s4">
+  <h2>4. 核心概念：RAG 检索增强生成</h2>
+
+  <h3>4.1 RAG 是什么？</h3>
+  <p>
+    RAG（Retrieval-Augmented Generation，检索增强生成）解决 LLM 的两大痛点：
+    <strong>知识截止日期</strong>（训练数据过时）和<strong>幻觉问题</strong>（编造不存在的信息）。
+    核心流程是：先检索相关文档，再将文档作为上下文注入 Prompt，让 LLM 基于参考资料回答。
+  </p>
+
+  <h3>4.2 RAG 的五个阶段</h3>
+
+  <h4>阶段 1：文档加载（Document Loading）</h4>
+  <pre><span class="kw">from</span> langchain_community.document_loaders <span class="kw">import</span> PyPDFLoader, TextLoader
+
+<span class="cm"># 加载 PDF</span>
+documents = PyPDFLoader(<span class="str">"企业制度.pdf"</span>).load()
+<span class="cm"># 加载 TXT</span>
+documents = TextLoader(<span class="str">"IT规范.txt"</span>, encoding=<span class="str">"utf-8"</span>).load()</pre>
+
+  <h4>阶段 2：文本切分（Text Splitting）</h4>
+  <p>大文档无法直接送入 LLM（有上下文窗口限制），需要切分为小块（chunk）。本项目使用<strong>递归字符分割器</strong>：</p>
+  <pre>RecursiveCharacterTextSplitter(
+    chunk_size=<span class="num">200</span>,       <span class="cm"># 每块最多 200 个字符</span>
+    chunk_overlap=<span class="num">20</span>,      <span class="cm"># 相邻块重叠 20 个字符（保持语义连续性）</span>
+    separators=[<span class="str">"\n\n"</span>, <span class="str">"。"</span>, <span class="str">"."</span>, <span class="str">"？"</span>, <span class="str">" "</span>, <span class="str">""</span>],  <span class="cm"># 按优先级分割</span>
+    length_function=len,
+)</pre>
+  <div class="callout tip">
+    <div class="callout-title">为什么需要 chunk_overlap？</div>
+    假设一段关键信息恰好被切分边界断开（前半段在 chunk A，后半段在 chunk B），overlap 确保相邻 chunk 中都有这段信息的上下文，提高检索召回率。
+  </div>
+
+  <h4>阶段 3：向量化（Embedding）</h4>
+  <p>将文本块通过 Embedding 模型转换为向量（如 1536 维浮点数数组）：</p>
+  <pre>text = <span class="str">"差旅报销需要发票原件和出差申请单"</span>
+vector = embed_model.embed_query(text)
+<span class="cm"># vector = [0.023, -0.145, 0.892, ..., 0.034]  # 1536 维</span></pre>
+
+  <h4>阶段 4：存储与检索（Store & Retrieve）</h4>
+  <p>向量存入 Chroma，查询时通过<strong>余弦相似度</strong>找到最相关的 top-k 个文本块：</p>
+  <pre>retriever = vector_store.as_retriever(search_kwargs={<span class="str">"k"</span>: <span class="num">3</span>})
+relevant_docs = retriever.invoke(<span class="str">"小户型适合哪些扫地机器人"</span>)
+<span class="cm"># 返回最相关的 3 个文档块</span></pre>
+
+  <h4>阶段 5：增强生成（Augmented Generation）</h4>
+  <p>将检索结果拼接为上下文，注入 Prompt，交给 LLM 生成回答：</p>
+  <pre>context = <span class="str">""</span>
+<span class="kw">for</span> i, doc <span class="kw">in</span> enumerate(relevant_docs):
+    context += <span class="str">f"【参考资料{i+1}】{doc.page_content}\n"</span>
+
+prompt = <span class="str">f"参考资料：{context}\n问题：{query}\n请基于参考资料回答。"</span>
+answer = chat_model.invoke(prompt)</pre>
+</section>
+
+<!-- ==================== S5 ==================== -->
+<section id="s5">
+  <h2>5. 核心概念：Middleware 中间件系统</h2>
+
+  <h3>5.1 什么是中间件？</h3>
+  <p>
+    LangGraph 的中间件系统允许在 Agent 执行的<strong>关键节点</strong>插入自定义逻辑，类似于 Web 框架（如 Express.js、Django）中的中间件概念。
+    中间件可以拦截、修改、记录或增强 Agent 的行为，而<strong>不需要修改 Agent 本身的核心代码</strong>。
+  </p>
+
+  <h3>5.2 三种中间件类型</h3>
+
+  <table>
+    <tr><th>装饰器</th><th>触发时机</th><th>作用</th><th>典型用途</th></tr>
+    <tr>
+      <td><code>@wrap_tool_call</code></td>
+      <td>每次工具调用前后</td>
+      <td>包装工具调用过程</td>
+      <td>日志记录、性能监控、权限校验、结果缓存</td>
+    </tr>
+    <tr>
+      <td><code>@before_model</code></td>
+      <td>每次 LLM 调用之前</td>
+      <td>观察状态快照</td>
+      <td>记录状态、消息计数、成本追踪</td>
+    </tr>
+    <tr>
+      <td><code>@dynamic_prompt</code></td>
+      <td>每次生成 Prompt 之前</td>
+      <td>动态切换 Prompt</td>
+      <td>根据上下文切换系统提示词（如普通模式→报告模式）</td>
+    </tr>
+  </table>
+
+  <h3>5.3 中间件执行流程</h3>
+  <div class="arch-diagram">
+@wrap_tool_call                     @before_model                  @dynamic_prompt
+     │                                  │                              │
+     ▼                                  ▼                              ▼
+┌─────────┐  tool_call  ┌──────────┐  model_call  ┌──────────────┐
+│ 工具调用  │◄──────────►│  LLM 调用  │◄────────────►│ Prompt 生成   │
+└─────────┘             └──────────┘              └──────────────┘
+     │                       │                          │
+     ▼                       ▼                          ▼
+ 记录工具名+参数        记录消息数量+类型          根据 context 切换
+ 记录成功/失败         最后一次消息内容           system prompt</div>
+
+  <h3>5.4 本项目中的实际应用</h3>
+  <p>最关键的设计是 <code>@dynamic_prompt</code>——它实现了<strong>运行时 Prompt 切换</strong>：</p>
+  <pre>
+<span class="cm"># 正常运行：使用 main_prompt（企业助手角色）</span>
+↓
+<span class="cm"># 当工具 fill_context_for_report 被调用时（在 monitor_tool 中检测）</span>
+request.runtime.context[<span class="str">"report"</span>] = True
+↓
+<span class="cm"># 下一次 @dynamic_prompt 触发时</span>
+<span class="kw">if</span> is_report:
+    <span class="kw">return</span> load_report_prompts()  <span class="cm"># 切换到周报生成 Prompt</span></pre>
+  <div class="callout tip">
+    <div class="callout-title">为什么用中间件而不是 if-else？</div>
+    中间件将横切关注点（cross-cutting concerns）从业务逻辑中解耦。监控、日志、Prompt 切换都不需要侵入 ReAct Agent 或工具函数的主体代码。
+  </div>
+</section>
+
+<!-- ==================== S6 ==================== -->
+<section id="s6">
+  <h2>6. 核心概念：LangGraph 运行时</h2>
+
+  <h3>6.1 LangGraph 在项目中的角色</h3>
+  <p>
+    LangGraph 是一个用于构建<strong>有状态、多角色 Agent 应用</strong>的框架。
+    它将 Agent 的执行建模为<strong>有向图</strong>（节点 = 操作，边 = 数据流），支持条件分支和循环。
+    本项目中，<code>create_react_agent</code> 底层正是用 LangGraph 构建的。
+  </p>
+
+  <h3>6.2 AgentState（Agent 状态）</h3>
+  <p><code>AgentState</code> 是整个 Agent 执行过程中的核心状态对象，包含：</p>
+  <pre>AgentState = {
+    <span class="str">"messages"</span>: [       <span class="cm"># 完整的消息历史列表</span>
+        HumanMessage(<span class="str">"我还有多少年假？"</span>),
+        AIMessage(content=<span class="str">"..."</span>),      <span class="cm"># LLM 的 Thought/Action</span>
+        ToolMessage(content=<span class="str">"剩余年假：12天"</span>),  <span class="cm"># 工具返回的 Observation</span>
+        AIMessage(content=<span class="str">"您当前剩余年假12天"</span>),   <span class="cm"># Final Answer</span>
+    ]
+}</pre>
+
+  <h3>6.3 Runtime（运行时上下文）</h3>
+  <p><code>Runtime</code> 提供了一个跨轮次的<strong>上下文存储</strong>，允许在中间件之间传递状态：</p>
+  <pre><span class="cm"># 在 monitor_tool 中设置标记</span>
+request.runtime.context[<span class="str">"report"</span>] = True
+
+<span class="cm"># 在 report_prompt_switch 中读取标记</span>
+is_report = request.runtime.context.get(<span class="str">"report"</span>, False)</pre>
+  <p>这种设计使得工具调用可以<strong>影响后续的 Prompt 选择</strong>，而不需要通过全局变量。</p>
+
+  <h3>6.4 Command 和 ToolCallRequest</h3>
+  <ul style="padding-left:1.5rem;margin:1rem 0;">
+    <li><code>ToolCallRequest</code>：封装了单次工具调用的完整信息（工具名、参数、运行时上下文）</li>
+    <li><code>ToolMessage</code>：工具调用的返回结果，被追加到消息历史中</li>
+    <li><code>Command</code>：可以中断或重定向 Agent 执行流的特殊返回值</li>
+  </ul>
+
+  <div class="callout info">
+    <div class="callout-title">LangGraph vs LangChain 的 AgentExecutor</div>
+    LangGraph 是 LangChain 生态的进化方向。传统的 AgentExecutor 是线性的"思考→行动→观察"循环，
+    而 LangGraph 支持更复杂的图结构：条件分支、并行执行、子图嵌套。但本项目的 <code>create_react_agent</code>
+    在 LangGraph 0.2.x 版本中仍然保持了简洁的 API。
+  </div>
+</section>
+
+<!-- ==================== S7 ==================== -->
+<section id="s7">
+  <h2>7. 核心概念：Streamlit 对话界面</h2>
+
+  <h3>7.1 Streamlit 的编程模型</h3>
+  <p>
+    Streamlit 采用<strong>"脚本即界面"</strong>的范式：每次用户交互（点击、输入）都会<strong>从头到尾重新执行整个 Python 脚本</strong>。
+    这意味着不需要手动管理 DOM、路由或前后端通信。可变状态通过 <code>st.session_state</code> 在多次重跑之间保持。
+  </p>
+
+  <h3>7.2 关键 Streamlit API</h3>
+  <table>
+    <tr><th>API</th><th>作用</th></tr>
+    <tr><td><code>st.chat_message(role, avatar)</code></td><td>渲染一条聊天消息气泡</td></tr>
+    <tr><td><code>st.chat_input(placeholder)</code></td><td>底部固定输入框</td></tr>
+    <tr><td><code>st.write_stream(generator)</code></td><td>流式显示生成器产生的文本（打字机效果）</td></tr>
+    <tr><td><code>st.session_state</code></td><td>跨重跑持久化状态（Agent 实例、消息历史）</td></tr>
+    <tr><td><code>st.sidebar</code></td><td>侧边栏（模型选择、参数调节）</td></tr>
+    <tr><td><code>st.expander(label, expanded)</code></td><td>可折叠区域（展示检索到的文档块）</td></tr>
+    <tr><td><code>st.spinner(text)</code></td><td>加载动画</td></tr>
+    <tr><td><code>st.rerun()</code></td><td>手动触发脚本重跑</td></tr>
+  </table>
+
+  <h3>7.3 流式输出的实现</h3>
+  <p>实现"打字机"效果的核心代码：</p>
+  <pre><span class="kw">def</span> <span class="fn">stream_agent_response</span>(prompt):
+    st.session_state.messages.append({<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: prompt})
+
+    <span class="kw">with</span> st.chat_message(<span class="str">"assistant"</span>):
+        <span class="kw">with</span> st.spinner(<span class="str">"正在检索知识库并生成回答..."</span>):
+            stream = st.session_state.agent.execute_stream(prompt)
+
+            <span class="kw">def</span> <span class="fn">capture</span>():
+                <span class="kw">for</span> chunk <span class="kw">in</span> stream:
+                    response_chunks.append(chunk)
+                    <span class="kw">for</span> char <span class="kw">in</span> chunk:
+                        time.sleep(<span class="num">0.004</span>)  <span class="cm"># 逐字符延迟，模拟打字效果</span>
+                        <span class="kw">yield</span> char
+
+            st.write_stream(capture())  <span class="cm"># Streamlit 自动渲染 yield 的字符</span></pre>
+</section>
+
+<!-- ==================== S8 ==================== -->
+<section id="s8">
+  <h2>8. 代码详解：项目入口 app.py</h2>
+
+  <p><span class="file-path">app.py</span> 是 Streamlit 应用的入口，负责 UI 渲染和 Agent 的调用协调。</p>
+
+  <h3>8.1 初始化流程</h3>
+  <pre><span class="kw">def</span> <span class="fn">init_state</span>():
+    <span class="kw">if</span> <span class="str">"agent"</span> <span class="kw">not in</span> st.session_state:
+        st.session_state.agent = ReactAgent()      <span class="cm"># 创建 Agent 单例</span>
+    <span class="kw">if</span> <span class="str">"messages"</span> <span class="kw">not in</span> st.session_state:
+        st.session_state.messages = []              <span class="cm"># 消息历史</span>
+    <span class="kw">if</span> <span class="str">"top_k"</span> <span class="kw">not in</span> st.session_state:
+        st.session_state.top_k = <span class="num">3</span>               <span class="cm"># 检索文档数量</span>
+    <span class="kw">if</span> <span class="str">"temperature"</span> <span class="kw">not in</span> st.session_state:
+        st.session_state.temperature = <span class="num">0.3</span>         <span class="cm"># 生成随机性</span></pre>
+
+  <h3>8.2 运行时配置同步</h3>
+  <p><code>sync_runtime_settings()</code> 函数是连接 UI 控件和后台 Agent 的桥梁：</p>
+  <pre><span class="kw">def</span> <span class="fn">sync_runtime_settings</span>():
+    <span class="cm"># 当用户在侧边栏切换模型时，全局替换 ChatTongyi 实例</span>
+    <span class="kw">if</span> model_name != st.session_state.get(<span class="str">"active_model_name"</span>):
+        model_factory.chat_model = ChatTongyi(model=model_name, temperature=temperature)
+        react_agent_module.chat_model = model_factory.chat_model
+        rag_service.model = model_factory.chat_model
+        rag_service.chain = rag_service._init_chain()  <span class="cm"># 重建 LCEL 链</span>
+        st.session_state.agent = ReactAgent()           <span class="cm"># 重建 Agent</span>
+
+    <span class="cm"># 同步 Top-K 参数到 retriever</span>
+    rag_service.retriever = rag_service.vector_store.vector_store.as_retriever(
+        search_kwargs={<span class="str">"k"</span>: top_k}
+    )</pre>
+
+  <h3>8.3 自定义 CSS 注入</h3>
+  <p>项目通过 <code>st.markdown(..., unsafe_allow_html=True)</code> 注入约 700 行自定义 CSS，实现了：</p>
+  <ul style="padding-left:1.5rem;margin:1rem 0;">
+    <li>CSS 变量系统（--primary、--accent、--radius 等设计 tokens）</li>
+    <li>隐藏 Streamlit 默认的顶栏和菜单</li>
+    <li>自定义消息气泡样式（用户消息：紫色渐变圆角，AI 消息：白色卡片 + 左侧紫色边框）</li>
+    <li>响应式布局（移动端适配）</li>
+    <li>滚动条美化</li>
+    <li>动画效果（消息淡入、状态脉冲）</li>
+  </ul>
+</section>
+
+<!-- ==================== S9 ==================== -->
+<section id="s9">
+  <h2>9. 代码详解：ReAct Agent 引擎</h2>
+
+  <p><span class="file-path">agent/react_agent.py</span> 是整个项目的心脏，负责创建和运行 ReAct Agent。</p>
+
+  <h3>9.1 类的结构</h3>
+  <pre><span class="kw">class</span> <span class="tp">ReactAgent</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>):
+        <span class="cm"># ① 注册工具列表</span>
+        tools = [rag_summarize, get_employee_id, get_employee_department,
+                 fetch_employee_records, generate_weekly_report_context]
+
+        <span class="cm"># ② 构建 ReAct Prompt 模板</span>
+        base_system_prompt = load_system_prompts()
+        react_template = base_system_prompt + REACT_FORMAT_INSTRUCTION
+
+        <span class="cm"># ③ 创建 PromptTemplate</span>
+        prompt = PromptTemplate.from_template(react_template)
+
+        <span class="cm"># ④ 创建 LangGraph ReAct Agent</span>
+        agent = create_react_agent(llm=chat_model, tools=tools, prompt=prompt)
+
+        <span class="cm"># ⑤ 包装为 AgentExecutor</span>
+        self.agent_executor = AgentExecutor(
+            agent=agent, tools=tools, verbose=True,
+            handle_parsing_errors=<span class="str">"请检查输出格式..."</span>
+        )</pre>
+
+  <h3>9.2 ReAct 模板中的关键部分</h3>
+  <p>Prompt 中包含的 ReAct 格式指令（来自 <code>react_agent.py</code> 第 28-63 行）：</p>
+  <pre>{tools}          <span class="cm"># 自动填充：工具名称 + 描述（来自 @tool 的 docstring）</span>
+{tool_names}     <span class="cm"># 自动填充：所有工具名列表</span>
+{input}          <span class="cm"># 用户问题</span>
+{agent_scratchpad} <span class="cm"># 历史 Thought/Action/Observation 的累积</span></pre>
+
+  <p>Prompt 中还嵌入了两个工作流模板：</p>
+  <ul style="padding-left:1.5rem;margin:1rem 0;">
+    <li><strong>周报工作流</strong>：固定 4 步工具调用顺序（get_employee_id → get_employee_department → generate_weekly_report_context → fetch_employee_records）</li>
+    <li><strong>员工数据工作流</strong>：2 步工具调用（get_employee_id → fetch_employee_records）</li>
+  </ul>
+
+  <h3>9.3 流式执行</h3>
+  <pre><span class="kw">def</span> <span class="fn">execute_stream</span>(<span class="kw">self</span>, query: str):
+    input_dict = {<span class="str">"input"</span>: query}
+    config = {<span class="str">"metadata"</span>: {<span class="str">"business_scene"</span>: <span class="str">"enterprise_knowledge_assistant"</span>}}
+
+    <span class="kw">try</span>:
+        <span class="kw">for</span> chunk <span class="kw">in</span> self.agent_executor.stream(input_dict, config=config):
+            <span class="kw">if</span> <span class="str">"output"</span> <span class="kw">in</span> chunk:
+                <span class="kw">yield</span> chunk[<span class="str">"output"</span>] + <span class="str">"\n"</span>       <span class="cm"># 每次 yield 一个输出块</span>
+    <span class="kw">except</span> RuntimeError:
+        <span class="kw">yield</span> <span class="str">"\n\n[系统提示：模型输出格式不符合 ReAct 要求...]\n"</span></pre>
+
+  <div class="callout warn">
+    <div class="callout-title">错误处理设计</div>
+    RuntimeError 通常表示 LLM 返回了不符合 ReAct 格式的输出（如缺少 Action 字段）。
+    项目通过 <code>handle_parsing_errors</code> 在 AgentExecutor 层面给予 LLM 修正机会，
+    同时在最外层也捕获异常以提供友好的错误提示。
+  </div>
+</section>
+
+<!-- ==================== S10 ==================== -->
+<section id="s10">
+  <h2>10. 代码详解：工具系统</h2>
+
+  <p><span class="file-path">agent/tools/agent_tools.py</span> 定义了 Agent 可调用的 5 个工具。</p>
+
+  <h3>10.1 @tool 装饰器的工作原理</h3>
+  <p><code>@tool</code> 是 LangChain 提供的一个装饰器，它将普通 Python 函数<strong>自动注册为 Agent 可用的工具</strong>。关键机制：</p>
+  <ul style="padding-left:1.5rem;margin:1rem 0;">
+    <li>函数名 → 工具名称（Action 中用到的名字）</li>
+    <li>函数的 <strong>docstring</strong> → 工具描述（LLM 根据描述决定调用哪个工具）</li>
+    <li>函数的<strong>参数签名</strong> → 工具的输入 Schema（告诉 LLM 应该传什么参数）</li>
+    <li>函数的<strong>返回值</strong> → Observation（追加到消息历史）</li>
+  </ul>
+
+  <h3>10.2 五个工具详解</h3>
+
+  <h4>工具 1：rag_summarize — 知识库检索</h4>
+  <pre><span class="kw">@tool</span>
+<span class="kw">def</span> <span class="fn">rag_summarize</span>(query: str) -> str:
+    <span class="str">"""从企业知识库中检索制度、流程、IT 支持、项目规范等参考资料。"""</span>
+    <span class="kw">return</span> rag.rag_summarize(query)  <span class="cm"># 委托给 RagSummarizeService</span></pre>
+  <p>这是最核心的工具——它将用户问题转发给 RAG 服务，RAG 服务从 Chroma 向量数据库检索相关文档，拼接到 Prompt 中，再交给 LLM 总结回答。</p>
+
+  <h4>工具 2：get_employee_id — 获取员工 ID</h4>
+  <pre><span class="kw">@tool</span>
+<span class="kw">def</span> <span class="fn">get_employee_id</span>(dummy: str = <span class="str">""</span>) -> str:
+    <span class="str">"""获取当前员工 ID。无入参，Action Input 请传入空字符串。"""</span>
+    <span class="kw">return</span> random.choice(employee_ids)  <span class="cm"># 模拟：从 5 个假员工中随机选</span></pre>
+  <div class="callout info">
+    <div class="callout-title">为什么用 random.choice？</div>
+    这是一个模拟系统，没有真正的用户认证。真实系统中，这个函数会读取登录用户的 Session/Token 来获取员工 ID。
+  </div>
+
+  <h4>工具 3：get_employee_department — 获取部门</h4>
+  <pre><span class="kw">@tool</span>
+<span class="kw">def</span> <span class="fn">get_employee_department</span>(employee_id: str) -> str:
+    <span class="str">"""根据员工 ID 获取员工所属部门。入参示例：E1001。"""</span>
+    load_employee_records()
+    employee_id = employee_id.strip().replace(<span class="str">'"'</span>, <span class="str">""</span>).replace(<span class="str">"'"</span>, <span class="str">""</span>)
+    record = employee_records.get(employee_id)
+    <span class="kw">return</span> record[<span class="str">"department"</span>] <span class="kw">if</span> record <span class="kw">else</span> <span class="str">"未查询到"</span></pre>
+
+  <h4>工具 4：fetch_employee_records — 业务数据查询</h4>
+  <p>这是最复杂的工具，支持 6 种查询类型。参数格式为 <code>"员工ID,查询类型"</code>：</p>
+  <pre>query_map = {
+    <span class="str">"leave_balance"</span>:   <span class="str">"剩余年假：{days} 天"</span>,
+    <span class="str">"reimbursement"</span>:  <span class="str">"最近报销状态：{status}；待补充材料：{docs}"</span>,
+    <span class="str">"projects"</span>:       <span class="str">"参与项目：{name}；本周重点：{highlights}；风险：{risks}"</span>,
+    <span class="str">"onboarding"</span>:     <span class="str">"入职待办：{tasks}"</span>,
+    <span class="str">"weekly_report"</span>:  <span class="str">"员工：{name}；部门：{dept}；项目：{proj}；..."</span>,
+    <span class="str">"all"</span>:            <span class="str">"{完整记录}"</span>,
+}</pre>
+
+  <h4>工具 5：generate_weekly_report_context — 周报场景入口</h4>
+  <pre><span class="kw">@tool</span>
+<span class="kw">def</span> <span class="fn">generate_weekly_report_context</span>(dummy: str = <span class="str">""</span>) -> str:
+    <span class="str">"""进入员工周报生成场景。无入参，Action Input 请传入空字符串。"""</span>
+    <span class="kw">return</span> <span class="str">"已进入员工周报生成场景。请结合员工项目记录输出：..."</span></pre>
+
+  <h3>10.3 惰性加载模式</h3>
+  <p>员工数据通过 <code>load_employee_records()</code> 懒加载：</p>
+  <pre><span class="kw">def</span> <span class="fn">load_employee_records</span>():
+    <span class="kw">if</span> employee_records:  <span class="cm"># 已加载则直接返回（缓存）</span>
+        <span class="kw">return</span>
+    <span class="kw">with</span> open(external_data_path, <span class="str">"r"</span>, encoding=<span class="str">"utf-8-sig"</span>) <span class="kw">as</span> f:
+        reader = csv.DictReader(f)
+        <span class="kw">for</span> row <span class="kw">in</span> reader:
+            employee_records[row[<span class="str">"employee_id"</span>]] = row</pre>
+  <p>这里使用了 Python 的<strong>模块级全局变量作为缓存</strong>，<code>load_employee_records()</code>
+  在首次调用时从 CSV 文件加载数据到内存字典，后续调用直接返回缓存。</p>
+</section>
+
+<!-- ==================== S11 ==================== -->
+<section id="s11">
+  <h2>11. 代码详解：中间件</h2>
+
+  <p><span class="file-path">agent/tools/middleware.py</span> 定义了 3 个中间件，形成 Agent 的监控、日志和动态提示词系统。</p>
+
+  <h3>11.1 monitor_tool — 工具调用监控器</h3>
+  <pre><span class="kw">@wrap_tool_call</span>
+<span class="kw">def</span> <span class="fn">monitor_tool</span>(
+    request: ToolCallRequest,                              <span class="cm"># 请求数据封装</span>
+    handler: Callable[[ToolCallRequest], ToolMessage | Command],  <span class="cm"># 实际执行函数</span>
+) -> ToolMessage | Command:
+    logger.info(<span class="str">f"[tool monitor]执行工具：{request.tool_call['name']}"</span>)
+    logger.info(<span class="str">f"[tool monitor]传入参数：{request.tool_call['args']}"</span>)
+
+    <span class="kw">try</span>:
+        result = handler(request)   <span class="cm"># ★ 调用真正的工具函数</span>
+        logger.info(<span class="str">f"[tool monitor]工具{request.tool_call['name']}调用成功"</span>)
+
+        <span class="cm"># ★ 关键逻辑：检测到特定工具调用时设置标记</span>
+        <span class="kw">if</span> request.tool_call[<span class="str">'name'</span>] == <span class="str">"fill_context_for_report"</span>:
+            request.runtime.context[<span class="str">"report"</span>] = True
+
+        <span class="kw">return</span> result
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        logger.error(<span class="str">f"工具{request.tool_call['name']}调用失败，原因：{str(e)}"</span>)
+        <span class="kw">raise</span> e</pre>
+
+  <div class="callout tip">
+    <div class="callout-title">装饰器模式 + 责任链</div>
+    <code>handler(request)</code> 的调用是中间件链的关键——<code>handler</code> 可能是下一个中间件，也可能是最终的工具函数本身。
+    多个 <code>@wrap_tool_call</code> 装饰的函数会形成一个调用链。
+  </div>
+
+  <h3>11.2 log_before_model — 模型调用前日志</h3>
+  <pre><span class="kw">@before_model</span>
+<span class="kw">def</span> <span class="fn">log_before_model</span>(state: AgentState, runtime: Runtime):
+    logger.info(<span class="str">f"[log_before_model]即将调用模型，带有{len(state['messages'])}条消息。"</span>)
+    logger.debug(<span class="str">f"[log_before_model]{type(state['messages'][-1]).__name__} | "</span>
+                 <span class="str">f"{state['messages'][-1].content.strip()}"</span>)
+    <span class="kw">return</span> None  <span class="cm"># 返回 None 表示不做任何修改</span></pre>
+  <p>这个中间件<strong>只观察不修改</strong>——它在每次 LLM 调用前记录当前消息数量和最后一条消息的内容，用于调试。</p>
+
+  <h3>11.3 report_prompt_switch — 动态提示词切换</h3>
+  <pre><span class="kw">@dynamic_prompt</span>
+<span class="kw">def</span> <span class="fn">report_prompt_switch</span>(request: ModelRequest):
+    is_report = request.runtime.context.get(<span class="str">"report"</span>, False)
+    <span class="kw">if</span> is_report:
+        <span class="kw">return</span> load_report_prompts()   <span class="cm"># 返回周报生成专用 Prompt</span>
+    <span class="kw">return</span> load_system_prompts()       <span class="cm"># 返回默认企业助手 Prompt</span></pre>
+  <p>这是最精妙的设计——通过 <code>runtime.context</code> 在不同中间件之间传递状态，
+  实现了<strong>无需修改 Agent 核心逻辑的 Prompt 动态切换</strong>。</p>
+</section>
+
+<!-- ==================== S12 ==================== -->
+<section id="s12">
+  <h2>12. 代码详解：RAG 服务层</h2>
+
+  <p><span class="file-path">rag/rag_service.py</span> 是 RAG 的核心，将检索和生成串联为一条 LCEL 链。</p>
+
+  <h3>12.1 RagSummarizeService 的架构</h3>
+  <pre><span class="kw">class</span> <span class="tp">RagSummarizeService</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>):
+        self.vector_store = VectorStoreService()              <span class="cm"># 向量存储</span>
+        self.retriever = self.vector_store.get_retriever()    <span class="cm"># 检索器</span>
+        self.prompt_text = load_rag_prompts()                 <span class="cm"># RAG 专用 Prompt</span>
+        self.prompt_template = PromptTemplate.from_template(self.prompt_text)
+        self.model = chat_model                               <span class="cm"># LLM 模型</span>
+        self.chain = self._init_chain()                       <span class="cm"># 构建 LCEL 链</span>
+
+    <span class="kw">def</span> <span class="fn">_init_chain</span>(<span class="kw">self</span>):
+        chain = self.prompt_template | print_prompt | self.model | StrOutputParser()
+        <span class="kw">return</span> chain</pre>
+
+  <h3>12.2 LCEL 链的数据流</h3>
+  <p>一条 LCEL 链定义了完整的数据处理流水线：</p>
+  <pre>输入 dict{"input": query, "context": ...}
+  │
+  ▼
+PromptTemplate       <span class="cm"># 将变量填充到模板 → 生成完整 Prompt 字符串</span>
+  │
+  ▼
+print_prompt         <span class="cm"># 调试用：打印完整 Prompt 到控制台</span>
+  │
+  ▼
+chat_model           <span class="cm"># 调用通义千问 LLM → 返回 AIMessage</span>
+  │
+  ▼
+StrOutputParser()    <span class="cm"># 提取 AIMessage.content → 纯字符串</span>
+  │
+  ▼
+返回字符串</pre>
+
+  <h3>12.3 rag_summarize 主流程</h3>
+  <pre><span class="kw">def</span> <span class="fn">rag_summarize</span>(<span class="kw">self</span>, query: str) -> str:
+    <span class="cm"># 第 1 步：从 Chroma 检索相关文档</span>
+    context_docs = self.retriever_docs(query)
+
+    <span class="cm"># 第 2 步：拼接上下文</span>
+    context = <span class="str">""</span>
+    <span class="kw">for</span> i, doc <span class="kw">in</span> enumerate(context_docs):
+        context += <span class="str">f"【参考资料{i+1}】: {doc.page_content} | 元数据：{doc.metadata}\n"</span>
+
+    <span class="cm"># 第 3 步：通过 LCEL 链生成回答</span>
+    <span class="kw">return</span> self.chain.invoke({
+        <span class="str">"input"</span>: query,
+        <span class="str">"context"</span>: context,
+    })</pre>
+
+  <div class="callout info">
+    <div class="callout-title">retriever.invoke() 的底层发生了什么？</div>
+    1. 将 query 通过 embedding 模型转换为向量<br>
+    2. 在 Chroma 中执行近似最近邻搜索（ANN）<br>
+    3. 返回余弦相似度最高的 k 个 Document 对象
+  </div>
+</section>
+
+<!-- ==================== S13 ==================== -->
+<section id="s13">
+  <h2>13. 代码详解：向量存储</h2>
+
+  <p><span class="file-path">rag/vector_store.py</span> 管理文档的生命周期：加载→切分→向量化→存储。</p>
+
+  <h3>13.1 Chroma 初始化</h3>
+  <pre><span class="kw">class</span> <span class="tp">VectorStoreService</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>):
+        self.vector_store = Chroma(
+            collection_name=<span class="str">"enterprise_agent"</span>,   <span class="cm"># 集合名称</span>
+            embedding_function=embed_model,           <span class="cm"># 嵌入函数</span>
+            persist_directory=<span class="str">"chroma_db"</span>,         <span class="cm"># 持久化目录</span>
+        )
+        self.spliter = RecursiveCharacterTextSplitter(
+            chunk_size=<span class="num">200</span>,
+            chunk_overlap=<span class="num">20</span>,
+            separators=[<span class="str">"\n\n"</span>, <span class="str">"。"</span>, <span class="str">"."</span>, <span class="str">"？"</span>, <span class="str">" "</span>, <span class="str">""</span>],
+        )</pre>
+
+  <h3>13.2 文档加载流程（load_document）</h3>
+  <ol class="flow-steps">
+    <li><strong>扫描文件夹</strong>：从 data/enterprise/ 目录列出所有 .txt 和 .pdf 文件</li>
+    <li><strong>MD5 去重检查</strong>：计算文件 MD5，与已处理的 MD5 列表比对，跳过重复文件</li>
+    <li><strong>文档加载</strong>：根据文件类型调用 PyPDFLoader 或 TextLoader</li>
+    <li><strong>文本切分</strong>：使用递归字符分割器将长文档切为语义块</li>
+    <li><strong>向量存储</strong>：调用 Chroma.add_documents() 将文本块向量化并持久化</li>
+    <li><strong>记录 MD5</strong>：将已处理文件的 MD5 写入 md5_enterprise.txt</li>
+  </ol>
+
+  <h3>13.3 MD5 去重机制</h3>
+  <pre><span class="kw">def</span> <span class="fn">check_md5_hex</span>(md5_for_check: str):
+    <span class="kw">if not</span> os.path.exists(<span class="str">"md5_enterprise.txt"</span>):
+        <span class="kw">return</span> False    <span class="cm"># 文件不存在，说明从未处理过任何文档</span>
+
+    <span class="kw">with</span> open(<span class="str">"md5_enterprise.txt"</span>, <span class="str">"r"</span>) <span class="kw">as</span> f:
+        <span class="kw">for</span> line <span class="kw">in</span> f.readlines():
+            <span class="kw">if</span> line.strip() == md5_for_check:
+                <span class="kw">return</span> True  <span class="cm"># 已处理过，跳过</span>
+        <span class="kw">return</span> False       <span class="cm"># 未处理过，需要加载</span></pre>
+  <p>这避免了重复上传同一个文件时浪费计算资源重复做 embedding。</p>
+
+  <h3>13.4 retriever 的创建</h3>
+  <pre><span class="kw">def</span> <span class="fn">get_retriever</span>(<span class="kw">self</span>):
+    <span class="kw">return</span> self.vector_store.as_retriever(search_kwargs={<span class="str">"k"</span>: <span class="num">3</span>})</pre>
+  <p><code>as_retriever()</code> 返回的是一个 LangChain <code>BaseRetriever</code> 接口对象，
+  调用 <code>retriever.invoke(query)</code> 就会自动完成"查询向量化 → 相似度搜索 → 返回 Document 列表"的全流程。</p>
+</section>
+
+<!-- ==================== S14 ==================== -->
+<section id="s14">
+  <h2>14. 代码详解：模型工厂</h2>
+
+  <p><span class="file-path">model/factory.py</span> 使用<strong>抽象工厂模式</strong>统一管理模型的创建。</p>
+
+  <h3>14.1 抽象工厂模式</h3>
+  <pre><span class="kw">class</span> <span class="tp">BaseModelFactory</span>(ABC):
+    <span class="kw">@abstractmethod</span>
+    <span class="kw">def</span> <span class="fn">generator</span>(<span class="kw">self</span>) -> Optional[Embeddings | BaseChatModel]:
+        <span class="kw">pass</span>
+
+<span class="kw">class</span> <span class="tp">ChatModelFactory</span>(BaseModelFactory):
+    <span class="kw">def</span> <span class="fn">generator</span>(<span class="kw">self</span>):
+        <span class="kw">return</span> ChatTongyi(model=<span class="str">"qwen-max"</span>)
+
+<span class="kw">class</span> <span class="tp">EmbeddingsFactory</span>(BaseModelFactory):
+    <span class="kw">def</span> <span class="fn">generator</span>(<span class="kw">self</span>):
+        <span class="kw">return</span> DashScopeEmbeddings(model=<span class="str">"text-embedding-v4"</span>)</pre>
+
+  <div class="callout tip">
+    <div class="callout-title">为什么用工厂模式？</div>
+    虽然当前只使用了通义千问一家模型提供商，但工厂模式为未来扩展留下了清晰的结构。
+    如果要切换为 OpenAI 或本地模型，只需新增一个工厂子类，其他代码完全不受影响。
+  </div>
+
+  <h3>14.2 模块级单例</h3>
+  <pre><span class="cm"># 模块加载时立即创建，全局共享同一实例</span>
+chat_model = ChatModelFactory().generator()
+embed_model = EmbeddingsFactory().generator()</pre>
+  <p>Python 的模块导入机制保证了 <code>chat_model</code> 和 <code>embed_model</code> 在整个应用中只创建一次。
+  当 app.py 在运行时切换模型时，直接修改这些模块变量（如 <code>model_factory.chat_model = ChatTongyi(...)</code>）。</p>
+</section>
+
+<!-- ==================== S15 ==================== -->
+<section id="s15">
+  <h2>15. 代码详解：配置与工具模块</h2>
+
+  <h3>15.1 config_handler.py — YAML 配置加载</h3>
+  <p><span class="file-path">utils/config_handler.py</span> 集中加载所有 YAML 配置文件：</p>
+  <pre>rag_conf = load_rag_config()         <span class="cm"># rag.yml → 模型名称</span>
+chroma_conf = load_chroma_config()   <span class="cm"># chroma.yml → 向量库参数</span>
+agent_conf = load_agent_config()     <span class="cm"># agent.yml → 外部数据路径</span>
+prompts_conf = load_prompts_config() <span class="cm"># prompts.yml → Prompt 文件路径</span></pre>
+  <p>设计要点：全部使用 <strong>YAML 外部配置文件</strong>而非硬编码。修改模型、数据库参数、Prompt 文件位置都不需要改代码。</p>
+
+  <h3>15.2 prompt_loader.py — Prompt 加载</h3>
+  <p><span class="file-path">utils/prompt_loader.py</span></p>
+  <pre><span class="kw">def</span> <span class="fn">load_system_prompts</span>():
+    system_prompt_path = get_abs_path(prompts_conf[<span class="str">"main_prompt_path"</span>])
+    <span class="kw">return</span> open(system_prompt_path, <span class="str">"r"</span>, encoding=<span class="str">"utf-8"</span>).read()
+
+<span class="kw">def</span> <span class="fn">load_rag_prompts</span>():
+    rag_prompt_path = get_abs_path(prompts_conf[<span class="str">"rag_summarize_prompt_path"</span>])
+    <span class="kw">return</span> open(rag_prompt_path, <span class="str">"r"</span>, encoding=<span class="str">"utf-8"</span>).read()
+
+<span class="kw">def</span> <span class="fn">load_report_prompts</span>():
+    report_prompt_path = get_abs_path(prompts_conf[<span class="str">"report_prompt_path"</span>])
+    <span class="kw">return</span> open(report_prompt_path, <span class="str">"r"</span>, encoding=<span class="str">"utf-8"</span>).read()</pre>
+
+  <h3>15.3 path_tool.py — 路径工具</h3>
+  <p><span class="file-path">utils/path_tool.py</span></p>
+  <pre><span class="kw">def</span> <span class="fn">get_project_root</span>() -> str:
+    <span class="cm"># 从当前文件向上两级：utils/path_tool.py → utils/ → 项目根目录</span>
+    current_file = os.path.abspath(__file__)
+    current_dir = os.path.dirname(current_file)    <span class="cm"># utils/</span>
+    project_root = os.path.dirname(current_dir)    <span class="cm"># 项目根目录</span>
+    <span class="kw">return</span> project_root
+
+<span class="kw">def</span> <span class="fn">get_abs_path</span>(relative_path: str) -> str:
+    <span class="kw">return</span> os.path.join(get_project_root(), relative_path)</pre>
+
+  <h3>15.4 file_handler.py — 文件处理</h3>
+  <p><span class="file-path">utils/file_handler.py</span></p>
+  <pre><span class="kw">def</span> <span class="fn">get_file_md5_hex</span>(filepath: str):
+    md5_obj = hashlib.md5()
+    chunk_size = <span class="num">4096</span>  <span class="cm"># 4KB 分片读取，避免大文件撑爆内存</span>
+    <span class="kw">with</span> open(filepath, <span class="str">"rb"</span>) <span class="kw">as</span> f:  <span class="cm"># 必须二进制模式</span>
+        <span class="kw">while</span> chunk := f.read(chunk_size):
+            md5_obj.update(chunk)
+    <span class="kw">return</span> md5_obj.hexdigest()</pre>
+  <p>使用了 Python 3.8+ 的<strong>海象运算符</strong> <code>:=</code>，在 while 循环中同时赋值和判断。</p>
+
+  <h3>15.5 logger_handler.py — 日志系统</h3>
+  <p><span class="file-path">utils/logger_handler.py</span> 实现了<strong>双通道日志</strong>：</p>
+  <ul style="padding-left:1.5rem;margin:1rem 0;">
+    <li><strong>控制台 Handler</strong>：INFO 及以上级别，避免刷屏</li>
+    <li><strong>文件 Handler</strong>：DEBUG 及以上级别，完整记录到 <code>logs/agent_YYYYMMDD.log</code></li>
+    <li><strong>防重复</strong>：<code>if logger.handlers: return logger</code> 避免多次初始化时重复添加 Handler</li>
+  </ul>
+</section>
+
+<!-- ==================== S16 ==================== -->
+<section id="s16">
+  <h2>16. 完整执行流程追踪</h2>
+
+  <p>以用户输入 <strong>"我还有多少年假？"</strong> 为例，追踪整个系统的完整执行路径：</p>
+
+  <h3>16.1 阶段 1：前端接收</h3>
+  <div class="arch-diagram">Streamlit st.chat_input("向企业知识库提问")
+    │
+    ▼
+stream_agent_response("我还有多少年假？")
+    │
+    ├─► sync_runtime_settings() — 同步模型/Top-K/Temperature 配置
+    ├─► retrieve_sources()       — 预检索知识库（供 UI 展示）
+    └─► agent.execute_stream()   — ★ 进入 Agent 核心</div>
+
+  <h3>16.2 阶段 2：Agent 推理（第一轮）</h3>
+  <div class="arch-diagram">@before_model → log_before_model: "即将调用模型，带有 1 条消息"
+    │
+    ▼
+@dynamic_prompt → report_prompt_switch: context["report"]=False → 返回 main_prompt
+    │
+    ▼
+LLM 接收到完整 Prompt（系统提示词 + ReAct 格式 + 用户问题）
+    │
+    ▼
+LLM 输出:
+  Thought: 用户想知道自己的年假余额，我需要先获取员工ID
+  Action: get_employee_id
+  Action Input: ""</div>
+
+  <h3>16.3 阶段 3：工具执行</h3>
+  <div class="arch-diagram">LangGraph 解析 LLM 输出 → 识别到 Action: get_employee_id
+    │
+    ▼
+@wrap_tool_call → monitor_tool:
+  - logger.info("执行工具：get_employee_id")
+  - handler(request) → 调用 get_employee_id()
+  - random.choice → "E1003"
+  - logger.info("工具 get_employee_id 调用成功")
+  - 返回 ToolMessage(content="E1003")</div>
+
+  <h3>16.4 阶段 4：Agent 推理（第二轮）</h3>
+  <div class="arch-diagram">AgentState 现在有 3 条消息:
+  [HumanMessage, AIMessage(Action:get_employee_id), ToolMessage("E1003")]
+    │
+    ▼
+LLM 接收到更新后的历史:
+  Thought: 已获得员工ID E1003，现在查询年假余额
+  Action: fetch_employee_records
+  Action Input: E1003,leave_balance</div>
+
+  <h3>16.5 阶段 5：工具再次执行</h3>
+  <div class="arch-diagram">monitor_tool:
+  - logger.info("执行工具：fetch_employee_records")
+  - handler → load_employee_records() → 从 CSV 读取数据
+  - 查找 employee_records["E1003"]["leave_balance_days"]
+  - 返回 ToolMessage("剩余年假：12 天。")
+
+AgentState: [HumanMessage, AIMessage, ToolMessage, AIMessage, ToolMessage]</div>
+
+  <h3>16.6 阶段 6：最终回答</h3>
+  <div class="arch-diagram">LLM 接收 5 条消息的历史，输出:
+  Thought: 我已获得年假数据，可以给出最终答案
+  Final Answer: 根据系统记录，您当前剩余年假为 12 天。
+
+    │
+    ▼
+LangGraph 检测到 Final Answer → 停止循环
+    │
+    ▼
+AgentExecutor.stream() yield {"output": "根据系统记录，您当前剩余年假为 12 天。"}
+    │
+    ▼
+Streamlit st.write_stream() → 逐字符渲染 → 用户看到打字机效果</div>
+
+  <div class="callout info">
+    <div class="callout-title">关键技术点</div>
+    整个过程 LLM 被调用了 <strong>2 次</strong>（第一轮推理 + 第二轮推理），工具被调用了 <strong>2 次</strong>（get_employee_id + fetch_employee_records）。
+    如果加上 RAG 相关的问题（如制度问答），内部还会多一次 rag_summarize 的 LLM 调用。
+  </div>
+</section>
+
+<!-- ==================== S17 ==================== -->
+<section id="s17">
+  <h2>17. Prompt 工程设计</h2>
+
+  <p>本项目共有 3 个 Prompt 文件，各司其职。</p>
+
+  <h3>17.1 main_prompt.txt — Agent 系统提示词</h3>
+  <p>定义了 Agent 的<strong>角色、目标、工具使用规则和输出规范</strong>。核心设计思路：</p>
+  <ul style="padding-left:1.5rem;margin:1rem 0;">
+    <li><strong>角色锚定</strong>："你是企业内部知识库 Agent 助手"——明确身份边界</li>
+    <li><strong>场景分级</strong>：制度类→rag_summarize，个人数据→get_employee_id→fetch，周报→四步固定流程</li>
+    <li><strong>安全护栏</strong>："不编造制度条款、审批结果、报销状态"——防止幻觉</li>
+    <li><strong>兜底策略</strong>："明确说'不确定'，并建议联系对应部门"</li>
+  </ul>
+
+  <h3>17.2 rag_summarize.txt — RAG 总结 Prompt</h3>
+  <p>这是一个<strong>填空式模板</strong>，在运行时通过 <code>PromptTemplate.from_template()</code> 填充变量：</p>
+  <pre>用户问题：<span class="str">{input}</span>
+参考资料：<span class="str">{context}</span>
+回答要求：只使用参考资料中的信息回答。如果不足，说"不确定"。</pre>
+
+  <h3>17.3 report_prompt.txt — 周报生成 Prompt</h3>
+  <p>定义了周报的<strong>四段式输出格式</strong>：本周工作概览 → 关键产出 → 问题与风险 → 下周计划。要求语言"适合直接复制到工作汇报中"。</p>
+
+  <div class="callout tip">
+    <div class="callout-title">Prompt 设计的核心原则</div>
+    1. <strong>约束优先于自由</strong>：明确告诉 LLM 不能做什么（不编造）<br>
+    2. <strong>结构化输出</strong>：提前定义输出格式，减少不确定性<br>
+    3. <strong>渐进式复杂度</strong>：简单任务直接回答，复杂任务分步执行<br>
+    4. <strong>边界声明</strong>：知识盲区时主动承认"不确定"而非胡编
+  </div>
+</section>
+
+<!-- ==================== S18 ==================== -->
+<section id="s18">
+  <h2>18. 设计模式与架构总结</h2>
+
+  <h3>18.1 使用的设计模式</h3>
+  <table>
+    <tr><th>设计模式</th><th>应用位置</th><th>效果</th></tr>
+    <tr>
+      <td>抽象工厂</td>
+      <td><span class="file-path">model/factory.py</span></td>
+      <td>统一创建 ChatModel 和 Embedding，便于切换模型提供商</td>
+    </tr>
+    <tr>
+      <td>装饰器</td>
+      <td><span class="file-path">agent/tools/agent_tools.py</span> (<code>@tool</code>)<br>
+          <span class="file-path">agent/tools/middleware.py</span> (<code>@wrap_tool_call</code> 等)</td>
+      <td>将普通函数增强为 Agent 工具 / 中间件，不侵入函数体</td>
+    </tr>
+    <tr>
+      <td>责任链</td>
+      <td>中间件链<br>
+          LCEL 管道链</td>
+      <td>多个中间件形成处理链；Prompt→LLM→Parser 形成数据加工链</td>
+    </tr>
+    <tr>
+      <td>单例</td>
+      <td>模块级变量 <code>chat_model</code>, <code>embed_model</code>, <code>logger</code></td>
+      <td>全局共享同一实例，避免重复初始化</td>
+    </tr>
+    <tr>
+      <td>策略</td>
+      <td><code>query_map</code> 中的 6 种查询类型路由</td>
+      <td>同一接口处理不同数据查询，通过 key 路由到不同逻辑</td>
+    </tr>
+    <tr>
+      <td>模板方法</td>
+      <td>ReAct 格式模板 + PromptTemplate</td>
+      <td>固定结构 + 可变内容的组合模式</td>
+    </tr>
+  </table>
+
+  <h3>18.2 架构分层</h3>
+  <table>
+    <tr><th>层级</th><th>模块</th><th>职责</th></tr>
+    <tr><td>表现层</td><td><span class="file-path">app.py</span></td><td>Streamlit UI、消息渲染、状态管理</td></tr>
+    <tr><td>Agent 层</td><td><span class="file-path">agent/react_agent.py</span><br><span class="file-path">agent/tools/middleware.py</span></td><td>ReAct 循环编排、中间件拦截</td></tr>
+    <tr><td>工具层</td><td><span class="file-path">agent/tools/agent_tools.py</span></td><td>封装 RAG 检索和员工数据查询为 @tool</td></tr>
+    <tr><td>服务层</td><td><span class="file-path">rag/rag_service.py</span><br><span class="file-path">rag/vector_store.py</span></td><td>RAG 总结服务、向量存储与检索</td></tr>
+    <tr><td>模型层</td><td><span class="file-path">model/factory.py</span></td><td>LLM 和 Embedding 模型的创建与管理</td></tr>
+    <tr><td>基础设施层</td><td><span class="file-path">utils/</span><br><span class="file-path">config/</span><br><span class="file-path">prompts/</span></td><td>配置、日志、路径、文件处理、Prompt 模板</td></tr>
+  </table>
+
+  <h3>18.3 关键技术决策</h3>
+  <ul style="padding-left:1.5rem;margin:1rem 0;">
+    <li><strong>选择 LangGraph 的 create_react_agent 而非手写 ReAct 循环</strong>：获得中间件支持、自动状态管理、流式输出</li>
+    <li><strong>选择 Chroma 作为向量数据库</strong>：轻量级、无需独立服务进程、适合演示和学习项目</li>
+    <li><strong>选择通义千问（DashScope）作为模型提供商</strong>：中文能力强、API 成本低</li>
+    <li><strong>选择 Streamlit 作为前端</strong>：纯 Python、快速开发、内置聊天组件</li>
+    <li><strong>YAML 外部配置 + 模块级单例</strong>：兼顾灵活性和简单性，适合中小规模项目</li>
+    <li><strong>MD5 去重机制</strong>：避免重复上传同一文件时重复 embedding，节省计算资源</li>
+  </ul>
+
+</section>
+
+<!-- Footer -->
+<div style="text-align:center;padding:3rem 0;border-top:1px solid var(--border);margin-top:3rem;color:var(--text-dim);font-size:.85rem;">
+  基于 LangChain ReAct Agent 项目源码深度分析生成 · 2026-05-11
+</div>
+
+</div><!-- .container -->
+</body>
+</html>
