@@ -216,3 +216,29 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+# ============================================================
+# 以下是本项目特有的忽略项
+# ============================================================
+
+# 向量库：由 data/enterprise/*.txt 入库生成，不是源文件。
+# 它是二进制产物（chroma.sqlite3 + *.bin），几百 KB 起，且每次改
+# chunk_size 都会整体失效——放进版本库只会制造无意义的 diff。
+# 重新生成：python -m rag.vector_store
+chroma_db/
+chroma_db.*/
+
+# 入库台账，与向量库同生命周期
+md5_enterprise.txt
+md5_enterprise.txt.bak*
+
+# 分块粒度扫描的临时向量库（eval/tune_chunking.py 自己会清理）
+chroma_db.tune/
+
+# 本机工具配置：与项目无关，不该出现在简历仓库里
+.claude/
+.agents/
+
+# 运行日志
+logs/

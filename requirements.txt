@@ -1,11 +1,41 @@
-langchain==0.3.7
-langchain-core==0.3.18
-langchain-community==0.3.7
-langchain-chroma==0.1.4
-chromadb==0.5.15
-langchain-text-splitters==0.3.2
-langgraph==0.2.50
-streamlit==1.40.1
-pypdf==5.1.0
+# 企业知识库 Agent —— 依赖清单
+# 安装：pip install -r requirements.txt
+#
+# 版本一律锁死（==）。这个项目要复现评测结果，而评测结论依赖
+# 切分器行为、embedding 模型和检索器实现——放开版本号会让
+# "Hit@1=1.000" 变成一个随环境漂移的数字。
+
+# ---- LLM 应用框架 ----
+langchain==0.3.7                  # LLM 应用开发框架
+langchain-core==0.3.86            # 核心抽象（消息、工具、Runnable）
+langchain-community==0.3.7        # 社区集成
+
+# ---- Agent 编排 ----
+langgraph==0.2.50                 # create_react_agent / MemorySaver
+
+# ---- 向量库与文档处理 ----
+langchain-chroma==0.1.4           # Chroma 集成
+chromadb==0.5.15                  # 向量库（本地持久化）
+langchain-text-splitters==0.3.2   # 递归字符切分
+pypdf==5.1.0                      # PDF 解析
+
+# ---- 检索 ----
+fastembed==0.8.0                  # 本地 embedding（ONNX 运行时，无需 PyTorch）
+rank_bm25==0.2.2                  # BM25，混合检索的词法一路
+
+# ---- 模型服务 ----
+langchain-deepseek==0.1.4         # DeepSeek（默认 provider）
+langchain-openai==0.3.35          # OpenAI 兼容接口，供其他 provider 复用
+dashscope==1.20.14                # 阿里通义千问
+
+# ---- 服务与界面 ----
+streamlit==1.40.1                 # 可视化问答界面
+fastapi==0.136.1                  # HTTP / SSE 服务
+uvicorn==0.46.0                   # ASGI 服务器
+
+# ---- 配置 ----
 pyyaml==6.0.2
-dashscope==1.20.14
+
+# ---- 开发与测试 ----
+pytest==9.1.1                     # tests/
+httpx==0.28.1                     # FastAPI TestClient 依赖

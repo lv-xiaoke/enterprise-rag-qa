@@ -5,6 +5,33 @@ data_path : data/enterprise
 md5_hex_store : md5_enterprise.txt
 allow_knowledge_file_type : ["txt","pdf"]
 
-chunk_size : 200
+# 检索策略：hybrid（BM25 + 向量 + RRF）/ vector（纯向量）
+# 两种策略的评测对照见 eval/report_vector.md 与 eval/report_hybrid.md
+retriever_type : hybrid
+# 混合检索时每路先各取多少候选再融合
+hybrid_fetch_k : 10
+# RRF 平滑常数，原论文取 60
+rrf_k : 60
+
+# 切分粒度。6 篇文档结构统一为「标题 + 一~五小节」，共 30 个小节，单节 50~90 字。
+#
+# 取 100：实测 30 个小节正好切成 30 块，6 篇文档**全部** 5 节 -> 5 块，
+# 块边界与语义边界逐一对齐。这不是挑出来的巧合，是 30/30。
+#
+# 对照：
+#   120 -> 23 块。只有 it_support_policy.txt 恰好对齐，另外 5 篇都会合并相邻
+#          小节（onboarding / project 各只剩 3 块）。
+#   200 -> 13 块。把「三、故障处理」(VPN/邮箱) 和「四、数据安全」(禁止拷贝到
+#          个人网盘) 合进同一块，该块同时对两类毫不相干的问题都高度相似，
+#          变成挤占 top-k 席位的「万金油块」。
+#    80 -> 33 块。会把小节从中间切断（it_support 的「三、故障处理」被劈成两半），
+#          正确文档被稀释成两个都不太像的半块，纯向量的 Hit@1 反而掉到 0.960。
+#
+# 扫描数据（eval/tune_chunking.py，两种策略 × 7 个粒度）：P@3 随 chunk_size
+# 单调下降——80~100 约 0.76，120 约 0.73，200 跌到 0.59，500 只剩 0.33；
+# 而 Hit@1 一直撑到 300 才松动。说明块切大了丢失的不是正确文档，是上下文纯度。
+#
+# 注意：改这个值会让已有向量库失效，必须删掉 chroma_db 与 md5 台账后重新入库。
+chunk_size : 100
 chunk_overlap : 20
 separators : ["\n\n","。",".","？","?","；",";","！","!"," ",""]

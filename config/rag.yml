@@ -1,2 +1,20 @@
-chat_model_name: qwen3-max
-embedding_model_name: text-embedding-v4
+# ============================================================
+# 模型配置
+# 通过 provider 字段切换厂商，业务代码不感知具体 SDK。
+# ============================================================
+
+# --- 对话模型 ---
+# 可选 provider：deepseek / dashscope
+chat_provider : deepseek
+chat_model_name : deepseek-chat
+chat_temperature : 0.3
+
+# --- 向量模型 ---
+# 可选 provider：local / dashscope
+# local 使用 fastembed 的 ONNX 模型，无需 API Key、可离线，clone 后即可跑通。
+# 注意：更换 embedding 模型会使已有向量库失效，必须删除 chroma_db 后重新入库。
+embedding_provider : local
+embedding_model_name : BAAI/bge-small-zh-v1.5
+
+# --- 评测用裁判模型（LLM-as-judge，要求确定性输出）---
+judge_model_name : deepseek-chat

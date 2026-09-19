@@ -1,0 +1,467 @@
+{
+  "tag": "vector",
+  "retriever": "vector",
+  "k": 3,
+  "retrieval": {
+    "k": 3,
+    "n_cases": 25,
+    "hit_at_1": 1.0,
+    "hit_at_k": 1.0,
+    "mrr": 1.0,
+    "context_recall": 1.0,
+    "precision_at_k": 0.7599999999999999,
+    "per_item": [
+      {
+        "id": "fin-01",
+        "category": "finance",
+        "question": "差旅报销需要提交哪些材料？",
+        "expected": [
+          "finance_reimbursement_policy.txt"
+        ],
+        "retrieved": [
+          "finance_reimbursement_policy.txt",
+          "finance_reimbursement_policy.txt",
+          "finance_reimbursement_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 1.0
+      },
+      {
+        "id": "fin-02",
+        "category": "finance",
+        "question": "报销申请最晚要在费用发生后多少天内提交？",
+        "expected": [
+          "finance_reimbursement_policy.txt"
+        ],
+        "retrieved": [
+          "finance_reimbursement_policy.txt",
+          "finance_reimbursement_policy.txt",
+          "hr_leave_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 0.6666666666666666
+      },
+      {
+        "id": "fin-03",
+        "category": "finance",
+        "question": "超过报销时限才提交会有什么后果？",
+        "expected": [
+          "finance_reimbursement_policy.txt"
+        ],
+        "retrieved": [
+          "finance_reimbursement_policy.txt",
+          "finance_reimbursement_policy.txt",
+          "finance_reimbursement_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 1.0
+      },
+      {
+        "id": "fin-04",
+        "category": "finance",
+        "question": "单笔金额超过 3000 元的费用需要谁审批？",
+        "expected": [
+          "finance_reimbursement_policy.txt"
+        ],
+        "retrieved": [
+          "finance_reimbursement_policy.txt",
+          "finance_reimbursement_policy.txt",
+          "it_support_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 0.6666666666666666
+      },
+      {
+        "id": "fin-05",
+        "category": "finance",
+        "question": "哪些费用是不能报销的？",
+        "expected": [
+          "finance_reimbursement_policy.txt"
+        ],
+        "retrieved": [
+          "finance_reimbursement_policy.txt",
+          "finance_reimbursement_policy.txt",
+          "finance_reimbursement_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 1.0
+      },
+      {
+        "id": "fin-06",
+        "category": "finance",
+        "question": "报销被退回的常见原因有哪些？",
+        "expected": [
+          "finance_reimbursement_policy.txt"
+        ],
+        "retrieved": [
+          "finance_reimbursement_policy.txt",
+          "finance_reimbursement_policy.txt",
+          "finance_reimbursement_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 1.0
+      },
+      {
+        "id": "hr-01",
+        "category": "hr",
+        "question": "司龄 3 年的员工每年有多少天年假？",
+        "expected": [
+          "hr_leave_policy.txt"
+        ],
+        "retrieved": [
+          "hr_leave_policy.txt",
+          "hr_leave_policy.txt",
+          "hr_leave_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 1.0
+      },
+      {
+        "id": "hr-02",
+        "category": "hr",
+        "question": "请假超过 1 天需要谁审批？",
+        "expected": [
+          "hr_leave_policy.txt"
+        ],
+        "retrieved": [
+          "hr_leave_policy.txt",
+          "hr_leave_policy.txt",
+          "finance_reimbursement_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 0.6666666666666666
+      },
+      {
+        "id": "hr-03",
+        "category": "hr",
+        "question": "病假证明需要在什么时候补充？",
+        "expected": [
+          "hr_leave_policy.txt"
+        ],
+        "retrieved": [
+          "hr_leave_policy.txt",
+          "hr_leave_policy.txt",
+          "hr_leave_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 1.0
+      },
+      {
+        "id": "hr-04",
+        "category": "hr",
+        "question": "调休的有效期是多久？",
+        "expected": [
+          "hr_leave_policy.txt"
+        ],
+        "retrieved": [
+          "hr_leave_policy.txt",
+          "finance_reimbursement_policy.txt",
+          "hr_leave_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 0.6666666666666666
+      },
+      {
+        "id": "hr-05",
+        "category": "hr",
+        "question": "连续请假超过 5 个工作日有什么注意事项？",
+        "expected": [
+          "hr_leave_policy.txt"
+        ],
+        "retrieved": [
+          "hr_leave_policy.txt",
+          "hr_leave_policy.txt",
+          "hr_leave_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 1.0
+      },
+      {
+        "id": "it-01",
+        "category": "it",
+        "question": "VPN 无法连接应该怎么处理？",
+        "expected": [
+          "it_support_policy.txt"
+        ],
+        "retrieved": [
+          "it_support_policy.txt",
+          "security_policy.txt",
+          "onboarding_guide.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 0.3333333333333333
+      },
+      {
+        "id": "it-02",
+        "category": "it",
+        "question": "申请办公设备时需要在工单里说明哪些信息？",
+        "expected": [
+          "it_support_policy.txt"
+        ],
+        "retrieved": [
+          "it_support_policy.txt",
+          "it_support_policy.txt",
+          "it_support_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 1.0
+      },
+      {
+        "id": "it-03",
+        "category": "it",
+        "question": "普通 IT 工单一般多久会响应？",
+        "expected": [
+          "it_support_policy.txt"
+        ],
+        "retrieved": [
+          "it_support_policy.txt",
+          "it_support_policy.txt",
+          "it_support_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 1.0
+      },
+      {
+        "id": "it-04",
+        "category": "it",
+        "question": "离职或岗位调整时需要完成哪些 IT 相关事项？",
+        "expected": [
+          "it_support_policy.txt"
+        ],
+        "retrieved": [
+          "it_support_policy.txt",
+          "it_support_policy.txt",
+          "hr_leave_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 0.6666666666666666
+      },
+      {
+        "id": "on-01",
+        "category": "onboarding",
+        "question": "新员工入职第一天需要完成哪些事项？",
+        "expected": [
+          "onboarding_guide.txt"
+        ],
+        "retrieved": [
+          "onboarding_guide.txt",
+          "onboarding_guide.txt",
+          "onboarding_guide.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 1.0
+      },
+      {
+        "id": "on-02",
+        "category": "onboarding",
+        "question": "入职第一周应该完成哪些内容？",
+        "expected": [
+          "onboarding_guide.txt"
+        ],
+        "retrieved": [
+          "onboarding_guide.txt",
+          "onboarding_guide.txt",
+          "onboarding_guide.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 1.0
+      },
+      {
+        "id": "on-03",
+        "category": "onboarding",
+        "question": "试用期目标应该在什么时候确认？",
+        "expected": [
+          "onboarding_guide.txt"
+        ],
+        "retrieved": [
+          "onboarding_guide.txt",
+          "hr_leave_policy.txt",
+          "project_collaboration_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 0.3333333333333333
+      },
+      {
+        "id": "prj-01",
+        "category": "project",
+        "question": "项目需求在进入正式迭代前必须完成什么？",
+        "expected": [
+          "project_collaboration_policy.txt"
+        ],
+        "retrieved": [
+          "project_collaboration_policy.txt",
+          "project_collaboration_policy.txt",
+          "project_collaboration_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 1.0
+      },
+      {
+        "id": "prj-02",
+        "category": "project",
+        "question": "哪些类型的代码改动需要至少两名相关人员评审？",
+        "expected": [
+          "project_collaboration_policy.txt"
+        ],
+        "retrieved": [
+          "project_collaboration_policy.txt",
+          "project_collaboration_policy.txt",
+          "onboarding_guide.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 0.6666666666666666
+      },
+      {
+        "id": "prj-03",
+        "category": "project",
+        "question": "高风险功能上线前需要准备什么？",
+        "expected": [
+          "project_collaboration_policy.txt"
+        ],
+        "retrieved": [
+          "project_collaboration_policy.txt",
+          "security_policy.txt",
+          "hr_leave_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 0.3333333333333333
+      },
+      {
+        "id": "sec-01",
+        "category": "security",
+        "question": "员工可以把公司数据拷贝到个人网盘吗？",
+        "expected": [
+          "it_support_policy.txt"
+        ],
+        "retrieved": [
+          "it_support_policy.txt",
+          "security_policy.txt",
+          "security_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 0.3333333333333333
+      },
+      {
+        "id": "sec-02",
+        "category": "security",
+        "question": "哪些数据属于敏感数据？",
+        "expected": [
+          "security_policy.txt"
+        ],
+        "retrieved": [
+          "security_policy.txt",
+          "security_policy.txt",
+          "security_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 1.0
+      },
+      {
+        "id": "sec-03",
+        "category": "security",
+        "question": "公司对员工使用外部 AI 工具有什么要求？",
+        "expected": [
+          "security_policy.txt"
+        ],
+        "retrieved": [
+          "security_policy.txt",
+          "it_support_policy.txt",
+          "it_support_policy.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 0.3333333333333333
+      },
+      {
+        "id": "sec-04",
+        "category": "security",
+        "question": "发现账号异常登录或设备丢失应该怎么做？",
+        "expected": [
+          "security_policy.txt"
+        ],
+        "retrieved": [
+          "security_policy.txt",
+          "it_support_policy.txt",
+          "onboarding_guide.txt"
+        ],
+        "hit": 1.0,
+        "hit_at_1": 1.0,
+        "rr": 1.0,
+        "recall": 1.0,
+        "precision": 0.3333333333333333
+      }
+    ]
+  },
+  "generation": null
+}

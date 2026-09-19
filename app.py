@@ -1,30 +1,26 @@
 from __future__ import annotations
 
 import html
+import json
 import time
 from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
-from langchain_community.chat_models.tongyi import ChatTongyi
 
 import agent.react_agent as react_agent_module
 import model.factory as model_factory
-from agent.react_agent import ReactAgent
+from agent.react_agent import ReactAgent, new_thread_id
+from agent.tools.agent_tools import list_employees, set_current_employee
 from agent.tools.agent_tools import rag as rag_service
+from rag.rag_service import last_retrieved_docs, normalize_sources
 from utils.config_handler import rag_conf
+from utils.logger_handler import logger
 
 
 APP_TITLE = "企业知识库问答"
 APP_SUBTITLE = "面向员工制度、流程、IT 支持与个人业务数据的智能问答助手"
 KNOWLEDGE_DIR = Path("data/enterprise")
-
-MODEL_OPTIONS = [
-    rag_conf["chat_model_name"],
-    "qwen-plus",
-    "qwen-turbo",
-    "qwen-max",
-]
 
 USER_ICON = """
 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -747,6 +743,14 @@ def init_state() -> None:
         st.session_state.temperature = 0.3
     if "active_model_name" not in st.session_state:
         st.session_state.active_model_name = rag_conf["chat_model_name"]
+    if "thread_id" not in st.session_state:
+        # 会话级 thread_id：Agent 靠它把多轮对话存进 checkpointer
+        st.session_state.thread_id = new_thread_id()
+    if "employee_id" not in st.session_state:
+        # 模拟登录身份。真实系统里这个值来自 SSO/OAuth 的会话，
+        # 这里让用户在侧边栏选，是为了能演示「换个身份就查不到别人的数据」。
+        employees = list_employees()
+        st.session_state.employee_id = employees[0]["employee_id"] if employees else None
 
 
 def export_messages_as_markdown(messages: list[dict]) -> str:
@@ -779,6 +783,12 @@ def export_messages_as_markdown(messages: list[dict]) -> str:
 def reset_conversation() -> None:
     st.session_state.messages = []
     st.session_state.pending_prompt = None
+    # 界面消息清空了，Agent 的记忆也得清——否则下一句「那病假呢？」会被模型
+    # 接到一段用户已经看不见的上下文上，回答看起来像是凭空冒出来的。
+    st.session_state.agent.reset_memory(st.session_state.thread_id)
+    # 换 thread_id 而不是复用：已经落库的历史再也不会被读到，
+    # 比去翻 checkpointer 内部结构删数据更简单，也不依赖 LangGraph 私有 API。
+    st.session_state.thread_id = new_thread_id()
 
 
 def sync_runtime_settings() -> None:
@@ -787,7 +797,11 @@ def sync_runtime_settings() -> None:
     temperature = float(st.session_state.get("temperature", 0.3))
 
     if model_name != st.session_state.get("active_model_name"):
-        model_factory.chat_model = ChatTongyi(model=model_name, temperature=temperature)
+        # 走工厂而不是直接 new 某家的 SDK：provider 是配置项（deepseek/dashscope），
+        # 这里硬编码 ChatTongyi 会在切到 deepseek 后把 deepseek-chat 塞给通义 SDK。
+        model_factory.chat_model = model_factory.build_chat_model(
+            model=model_name, temperature=temperature
+        )
         react_agent_module.chat_model = model_factory.chat_model
         rag_service.model = model_factory.chat_model
         rag_service.chain = rag_service._init_chain()
@@ -795,11 +809,14 @@ def sync_runtime_settings() -> None:
         st.session_state.active_model_name = model_name
 
     try:
-        rag_service.retriever = rag_service.vector_store.vector_store.as_retriever(
-            search_kwargs={"k": top_k}
-        )
-    except Exception:
-        pass
+        # 走 get_retriever 而不是自己拼向量检索器：后者只接受 search_kwargs，
+        # 会把 retriever_type 配置（hybrid/vector）一起丢掉——界面上拖动 Top-K
+        # 就会悄悄退化成纯向量检索，混合检索那部分提升直接失效。
+        rag_service.retriever = rag_service.vector_store.get_retriever(k=top_k)
+    except Exception as exc:
+        # 不静默 pass：检索装配失败会让问答在「没有参考资料」的情况下继续跑，
+        # 表现为答案质量莫名下降，是最难定位的一类线上问题。
+        logger.error(f"[运行配置]检索器装配失败，沿用上一次的检索器：{exc}", exc_info=True)
 
     for model_like in (getattr(rag_service, "model", None),):
         if model_like is not None and hasattr(model_like, "temperature"):
@@ -822,8 +839,31 @@ def render_sidebar() -> None:
         st.markdown("### 知识库控制台")
         st.caption("模型、检索、上传和会话操作都收纳在这里。")
 
-        model_options = list(dict.fromkeys(MODEL_OPTIONS))
-        default_index = model_options.index(st.session_state.active_model_name)
+        employees = list_employees()
+        if employees:
+            directory = {
+                item["employee_id"]: f"{item['employee_name']}（{item['employee_id']}·{item['department']}）"
+                for item in employees
+            }
+            st.selectbox(
+                "当前登录员工",
+                options=list(directory),
+                format_func=lambda value: directory.get(value, value),
+                key="employee_id",
+                # 换身份必须清空对话：上一轮作为别人问到的年假余额还留在 Agent
+                # 的记忆里，换个身份追问「我刚才那个还剩几天」，模型答的是上一个人的
+                # 数据——这段数据不经过工具，工具层的越权校验拦不住。
+                on_change=reset_conversation,
+                help="模拟登录身份。个人数据工具只允许查询当前身份本人。",
+            )
+
+        model_options = model_factory.chat_model_choices()
+        # index 兜底：会话里存的模型名可能来自上一个 provider，不在当前候选里
+        default_index = (
+            model_options.index(st.session_state.active_model_name)
+            if st.session_state.active_model_name in model_options
+            else 0
+        )
         st.selectbox("模型", model_options, index=default_index, key="model_name")
         st.slider("Temperature", 0.0, 1.0, key="temperature", step=0.05)
         st.slider("Top-K 检索数量", 1, 8, key="top_k", step=1)
@@ -896,37 +936,29 @@ def render_empty_state() -> None:
         unsafe_allow_html=True,
     )
 
-def normalize_sources(raw_docs: list) -> list[dict[str, str]]:
-    sources = []
-    for index, doc in enumerate(raw_docs, start=1):
-        metadata = getattr(doc, "metadata", {}) or {}
-        source = (
-            metadata.get("source")
-            or metadata.get("file_path")
-            or metadata.get("filename")
-            or "企业知识库"
-        )
-        page = metadata.get("page")
-        if page is not None:
-            source = f"{source} · p.{page}"
+def render_trace(trace: list[dict]) -> None:
+    """把工具调用过程渲染成可折叠的「推理过程」。
 
-        content = " ".join(getattr(doc, "page_content", "").split())
-        sources.append(
-            {
-                "title": f"文本块 {index}",
-                "source": str(source),
-                "content": content[:520],
-            }
-        )
-    return sources
+    为什么不直接写进正文：答案是给用户看的，工具轨迹是给用户**验**的。
+    混在一起会让正文变成流水账（提示词里也明确要求不要复述调用过程），
+    折叠起来则既能验证 Agent 真的查了知识库、而不是凭空编的，又不干扰阅读。
+    """
+    if not trace:
+        return
 
-
-def retrieve_sources(prompt: str) -> list[dict[str, str]]:
-    try:
-        docs = rag_service.retriever_docs(prompt)
-    except Exception:
-        return []
-    return normalize_sources(docs)
+    calls = sum(1 for step in trace if step["type"] == "tool_call")
+    with st.expander(f"推理过程 · {calls} 次工具调用", expanded=False):
+        for step in trace:
+            if step["type"] == "tool_call":
+                st.markdown(f"**→ 调用 `{step['name']}`**")
+                if step["args"]:
+                    st.code(
+                        json.dumps(step["args"], ensure_ascii=False, indent=2),
+                        language="json",
+                    )
+            elif step["type"] == "tool_result":
+                st.markdown(f"**← `{step['name']}` 返回**")
+                st.code(str(step["content"])[:400], language="text")
 
 
 def render_sources(sources: list[dict[str, str]]) -> None:
@@ -957,6 +989,7 @@ def render_messages() -> None:
         with st.chat_message(message["role"], avatar=icon):
             st.markdown(message["content"])
         if message["role"] == "assistant":
+            render_trace(message.get("trace", []))
             render_sources(message.get("sources", []))
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -964,30 +997,58 @@ def render_messages() -> None:
 def stream_agent_response(prompt: str) -> None:
     sync_runtime_settings()
 
+    # 每次请求绑定当前身份。ContextVar 按执行上下文隔离，而工具调用发生在本函数
+    # 内——绑在这里，保证「谁问的就查谁的」，并发会话之间也不会互相串身份。
+    set_current_employee(st.session_state.employee_id)
+
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar=USER_ICON):
         st.markdown(prompt)
 
-    sources = retrieve_sources(prompt)
     response_chunks: list[str] = []
+    trace: list[dict] = []
 
     with st.chat_message("assistant", avatar=AI_ICON):
-        with st.spinner("正在检索知识库并生成回答..."):
-            stream = st.session_state.agent.execute_stream(prompt)
+        status = st.empty()
+        stream = st.session_state.agent.stream_events(
+            prompt, thread_id=st.session_state.thread_id
+        )
 
-            def capture():
-                for chunk in stream:
-                    response_chunks.append(chunk)
-                    for char in chunk:
+        def capture():
+            for event in stream:
+                kind = event["type"]
+                if kind == "token":
+                    response_chunks.append(event["content"])
+                    for char in event["content"]:
                         time.sleep(0.004)
                         yield char
+                elif kind == "error":
+                    response_chunks.append(event["content"])
+                    yield event["content"]
+                else:
+                    # tool_call / tool_result 不进正文，只进轨迹。
+                    # 让用户看到「正在查什么」，而不是对着一个转圈干等——
+                    # Agent 调工具可能要好几秒，这段空白最容易被当成卡死。
+                    trace.append(event)
+                    icon = "→" if kind == "tool_call" else "←"
+                    status.caption(f"{icon} `{event['name']}`")
 
-            st.write_stream(capture())
+        st.write_stream(capture())
+        status.empty()
+        render_trace(trace)
 
     content = "".join(response_chunks).strip()
     if content:
         st.session_state.messages.append(
-            {"role": "assistant", "content": content, "sources": sources}
+            {
+                "role": "assistant",
+                "content": content,
+                # 来源直接取业务路径登记的那批文档，不再用原始提问重检索一次：
+                # 既省一次 embedding + BM25，也避免 Agent 改写查询后
+                # 「展示的依据」和「答案真正的依据」对不上。
+                "sources": normalize_sources(last_retrieved_docs()),
+                "trace": trace,
+            }
         )
     st.rerun()
 
