@@ -318,6 +318,10 @@ OA、IM 机器人、内部搜索框后面，所以有 `api/server.py`：三个�
 pip install -r requirements.txt
 
 # 配置模型 Key（默认 provider 为 deepseek，见 config/rag.yml）
+cp .env.example .env                          # Windows: copy .env.example .env
+# 然后编辑 .env，填入 DEEPSEEK_API_KEY
+
+# 也可以直接用环境变量——它的优先级**高于** .env，CI / 容器里用这个
 export DEEPSEEK_API_KEY="your-api-key"        # Windows: $env:DEEPSEEK_API_KEY="..."
 
 # 知识库入库（增量，可重复执行）

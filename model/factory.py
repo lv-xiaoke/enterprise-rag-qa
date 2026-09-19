@@ -22,11 +22,28 @@ from __future__ import annotations
 import os
 from typing import Callable
 
+from dotenv import load_dotenv
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 
 from utils.config_handler import rag_conf
 from utils.logger_handler import logger
+from utils.path_tool import get_abs_path
+
+
+# ---- .env 支持 ----
+# 在读取任何 Key 之前加载 .env，本地开发只要建一个 .env，就不必每次开终端先 export。
+#
+# 两个刻意的选择：
+# 1. **显式传路径**，不用 `load_dotenv()` 的自动查找。自动查找靠调用栈去猜项目根，
+#    从别的目录启动脚本时可能猜错（比如从 tests/ 里跑），表现成「.env 明明在却读不到」。
+# 2. **不覆盖已存在的环境变量**（python-dotenv 的默认行为，这里显式写出来表明是有意为之）。
+#    于是 CI / 容器里注入的真实变量优先于本地文件，不必为 .env 做任何特殊处理——
+#    这正是 12-factor 期望的优先级顺序。
+_ENV_FILE = get_abs_path(".env")
+if os.path.exists(_ENV_FILE):
+    load_dotenv(_ENV_FILE, override=False)
+    logger.info(f"[配置]已从 {_ENV_FILE} 加载环境变量（不覆盖已存在的同名变量）")
 
 
 class ProviderError(RuntimeError):
