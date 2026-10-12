@@ -19,7 +19,8 @@
 | 完整 Nginx 入口 API 验收 | prepare / 重启 backend / verify 全部通过：登录、CSRF、跨用户 404、周报保留/编辑、真实 PostgreSQL checkpoint 清空 |
 | 完整 Nginx 入口 Chromium 验收 | 重启前、重启后新建浏览器会话均通过：登录、周报读取、第二账号隔离及角色入口 |
 | GitHub Actions | 已配置；本地等效检查通过，未推送触发远程运行 |
-| 真实 LLM 生成评测 | 未执行，未实测 |
+| 真实 DeepSeek 连接验证 | 后续配置修复后通过：真实认证 API 问答 completed，约 1.97 秒，无工具调用，2 条历史消息持久化 |
+| 真实 LLM 质量评测（独立 30 题） | 未执行，未实测 |
 | 云端部署 | 未执行 |
 
 本机测试命令：
@@ -46,7 +47,7 @@ Playwright 输出保存在 `frontend/playwright-output/<时间戳>/`，每次新
 
 ## 完整部署验收补充
 
-使用独立 Compose project `codex-ai-fullstack-v1` 和命名卷，测试入口为 `http://127.0.0.1:18080`；README 的默认入口仍为 8080。本次用 `.env.example` 显式作为 Compose env-file，终端注入独立测试密码，模型 Key 为空。没有读取或改写用户真实凭证，也没有批量清理文件或卷。
+使用独立 Compose project `codex-ai-fullstack-v1` 和命名卷，测试入口为 `http://127.0.0.1:18080`；README 的默认入口仍为 8080。首次部署验收用 `.env.example` 显式作为 Compose env-file，终端注入独立测试密码，模型 Key 为空。该阶段没有读取或改写用户真实凭证，也没有批量清理文件或卷。
 
 ```powershell
 # 在独立测试实例中先设置 DEMO_PASSWORD 为该实例的初始化密码。
@@ -58,3 +59,9 @@ python tests/compose_smoke.py verify --base-url http://127.0.0.1:18080
 API 验收脚本使用本机直连，避免环境 HTTP 代理把 loopback 请求转发为 502。Linux 容器启动前实际复现过非 root 用户导入 logger 时的目录权限错误；Dockerfile 已创建并授权 logs 目录，最终镜像的测试和实际启动均通过。生产入口浏览器截图为 `docs/screenshots/compose-reports.png`，展示真实部署的模拟业务数据，不涉及模型生成。
 
 直接依赖由 requirements 固定版本；Windows 全量依赖快照只对应已验证 Windows 环境，传递依赖的 Linux 解析结果单独由实际镜像测试验证。
+
+## 后续模型连接修复
+
+用户报告实际问答失败后，容器日志确认缺少 DEEPSEEK_API_KEY。本机已有 `.env` 配置；在用户授权修复后，仅在进程内读取 Key 并注入重新创建的 backend，不输出或提交凭证，不改写 `.env`，沿用原数据库、账号密码、Origin 和命名卷。随后刷新 Nginx 的后端连接。
+
+通过真实 Nginx/API 发送不含业务数据的连接测试，返回 completed、5 字符回答、无工具调用、约 1.97 秒；历史持久化 2 条消息。此结果只证明当前凭证和基础问答链路可用，不代表知识检索质量、业务工具的真实模型效果或完整 30 题评测。自动审批拒绝了可能发送业务记录的报销查询验证，已采用普通连接测试完成修复验收。
