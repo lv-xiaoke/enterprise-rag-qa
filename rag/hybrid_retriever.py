@@ -60,6 +60,10 @@ def tokenize_zh(text: str) -> list[str]:
     return [compact[i : i + 2] for i in range(len(compact) - 1)]
 
 
+def document_key(doc: Document) -> str:
+    return str(doc.metadata.get('chunk_id') or doc.page_content)
+
+
 def reciprocal_rank_fusion(
     rankings: Sequence[Sequence[str]], rrf_k: int = 60
 ) -> dict[str, float]:
@@ -116,7 +120,7 @@ class HybridRetriever:
         ]
         # 用 chunk 内容本身作为融合时的 key：同一份文档会被切成多块，
         # 用 source 当 key 会把不同块合并掉，丢掉块级区分度。
-        self._key_to_doc: dict[str, Document] = {d.page_content: d for d in self._docs}
+        self._key_to_doc: dict[str, Document] = {document_key(d): d for d in self._docs}
 
         corpus = [tokenize_zh(d.page_content) for d in self._docs]
         self._bm25 = BM25Okapi(corpus) if corpus else None
@@ -136,7 +140,7 @@ class HybridRetriever:
             return []
         scores = self._bm25.get_scores(tokens)
         order = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
-        return [self._docs[i].page_content for i in order[: self.fetch_k]]
+        return [document_key(self._docs[i]) for i in order[: self.fetch_k]]
 
     def _vector_ranking(self, query: str) -> list[str]:
         try:
@@ -146,7 +150,7 @@ class HybridRetriever:
             return []
         # Chroma 返回的是距离，越小越相关
         pairs.sort(key=lambda p: p[1])
-        return [doc.page_content for doc, _ in pairs]
+        return [document_key(doc) for doc, _ in pairs]
 
     # -- 对外 ---------------------------------------------------------------
 

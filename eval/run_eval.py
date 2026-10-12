@@ -139,17 +139,24 @@ def run_generation(items: Sequence[dict], retriever, k: int, judge, pipeline: st
         rag_svc = RagSummarizeService()
         agent = None
 
+    from rag.rag_service import retrieval_evidence
+    from agent.react_agent import new_thread_id
+    from agent.tools.agent_tools import _current_employee
     per_item: list[dict] = []
 
     for it in items:
         question = it["question"]
-        docs = retrieve(retriever, question, k)
+        docs = [] if pipeline == "agent" else retrieve(retriever, question, k)
+        evidence_token = retrieval_evidence.set(docs)
+        identity_token = _current_employee.set(it.get("employee_id", "E1001"))
         contexts = [d.page_content for d in docs]
         sources = metrics.extract_sources(docs)
 
         try:
             if pipeline == "agent":
-                answer = "".join(agent.execute_stream(question))
+                answer = "".join(agent.execute_stream(question, thread_id=new_thread_id()))
+                contexts = [d.page_content for d in docs]
+                sources = metrics.extract_sources(docs)
             else:
                 context_text = "\n".join(
                     f"【参考资料{i}】{c}" for i, c in enumerate(contexts, start=1)
@@ -168,7 +175,11 @@ def run_generation(items: Sequence[dict], retriever, k: int, judge, pipeline: st
                 }
             )
             continue
+        finally:
+            retrieval_evidence.reset(evidence_token)
+            _current_employee.reset(identity_token)
 
+        correctness = metrics.judge_correctness(judge, question, answer, it.get("reference_answer", "")) if it.get("reference_answer") else {"score": None, "reason": "无标准答案"}
         faith = metrics.judge_faithfulness(judge, answer, contexts)
         relev = metrics.judge_relevancy(judge, question, answer)
 
@@ -177,6 +188,8 @@ def run_generation(items: Sequence[dict], retriever, k: int, judge, pipeline: st
             "category": it["category"],
             "question": question,
             "answer": answer,
+            "answer_correctness": correctness["score"],
+            "correctness_reason": correctness["reason"],
             "retrieved": sources,
             "faithfulness": faith["score"],
             "faithfulness_reason": faith["reason"],
@@ -197,6 +210,7 @@ def run_generation(items: Sequence[dict], retriever, k: int, judge, pipeline: st
         "k": k,
         "pipeline": pipeline,
         "n_cases": len(per_item),
+        "answer_correctness": metrics.mean([r.get("answer_correctness") for r in per_item]),
         "faithfulness": metrics.mean([r["faithfulness"] for r in per_item]),
         "relevancy": metrics.mean([r["relevancy"] for r in per_item]),
         "refusal_accuracy": metrics.mean([r["refusal"] for r in refusal_cases]),
@@ -226,7 +240,7 @@ def build_report(tag: str, retrieval: dict | None, generation: dict | None, k: i
             f"| Hit@{k} | {metrics.format_metric(retrieval['hit_at_k'])} | 正确文档是否进入 top-{k}（k 大时会饱和，容易掩盖问题）|",
             f"| MRR | {metrics.format_metric(retrieval['mrr'])} | 命中项排名的倒数均值，反映排序质量 |",
             f"| Context Recall | {metrics.format_metric(retrieval['context_recall'])} | 期望来源被召回的比例 |",
-            f"| Precision@{k} | {metrics.format_metric(retrieval['precision_at_k'])} | top-{k} 中有效内容的占比，低值说明上下文被无关内容稀释 |",
+            f"| Precision@{k} | {metrics.format_metric(retrieval['precision_at_k'])} | top-{k} 中来自期望文件的占比（非分块正确率），低值说明上下文被无关内容稀释 |",
             "",
         ]
 
@@ -346,11 +360,12 @@ def main() -> None:
     )
     parser.add_argument("--k", type=int, default=3, help="检索深度")
     parser.add_argument("--tag", default=None, help="结果文件后缀，默认由策略名推导")
+    parser.add_argument("--dataset", type=Path, default=GOLDEN_SET_PATH)
     parser.add_argument("--limit", type=int, default=None, help="只跑前 N 题（调试用）")
     args = parser.parse_args()
 
     tag = args.tag or args.retriever
-    items = load_golden_set()
+    items = load_golden_set(args.dataset)
     if args.limit:
         items = items[: args.limit]
 

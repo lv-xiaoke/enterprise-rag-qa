@@ -29,6 +29,8 @@ import uuid
 from typing import AsyncIterator, Iterator
 
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
+from langchain_core.messages import trim_messages
+import json
 from langgraph.checkpoint.memory import MemorySaver
 
 from agent.tools.agent_tools import (
@@ -80,7 +82,9 @@ def _current_chat_model():
 class ReactAgent:
     """企业知识助手 Agent：工具调用 + 多轮记忆 + 结构化流式输出。"""
 
-    def __init__(self) -> None:
+    def __init__(self, model=None, checkpointer=None) -> None:
+        self.model = model
+        self.checkpointer = checkpointer if checkpointer is not None else _CHECKPOINTER
         self.tools = [
             rag_summarize,
             get_employee_id,
@@ -95,13 +99,24 @@ class ReactAgent:
 
     # -- 图 ----------------------------------------------------------------
 
+    def _bounded_messages(self, state):
+        # UTF-8 bytes are a conservative budget, avoiding a network tokenizer download.
+        def upper_bound(messages):
+            return sum(len(str(m.content).encode('utf-8')) +
+                       len(json.dumps(getattr(m, 'tool_calls', []), ensure_ascii=False).encode('utf-8')) + 32
+                       for m in messages)
+        messages = trim_messages(state['messages'], max_tokens=12000,
+            token_counter=upper_bound, strategy='last', start_on='human',
+            end_on=('human', 'tool'), allow_partial=False)
+        return [SystemMessage(content=self.system_prompt), *messages]
+
     def _get_graph(self):
         """惰性构建并缓存执行图。
 
         模型是模块级可变量（界面切换模型会直接给 `chat_model` 赋值），
         所以缓存之外还要比对模型对象：发现换了就重建图，否则切换模型不会生效。
         """
-        model = _current_chat_model()
+        model = self.model if self.model is not None else _current_chat_model()
 
         if self._graph is None or self._graph_model is not model:
             from langgraph.prebuilt import create_react_agent
@@ -109,8 +124,8 @@ class ReactAgent:
             self._graph = create_react_agent(
                 model=model,
                 tools=self.tools,
-                state_modifier=SystemMessage(content=self.system_prompt),
-                checkpointer=_CHECKPOINTER,
+                state_modifier=self._bounded_messages,
+                checkpointer=self.checkpointer,
             )
             self._graph_model = model
             logger.info(f"[Agent]已构建执行图，工具 {len(self.tools)} 个")
@@ -122,7 +137,7 @@ class ReactAgent:
     def reset_memory(self, thread_id: str) -> None:
         """清空指定会话的对话记忆。"""
         try:
-            _CHECKPOINTER.delete_thread(thread_id)
+            self.checkpointer.delete_thread(thread_id)
         except Exception as exc:  # 记忆清理失败不该打断「清空会话」这个操作
             logger.error(f"[Agent]清理会话记忆失败 thread_id={thread_id}：{exc}")
 
@@ -132,6 +147,7 @@ class ReactAgent:
         return {
             "configurable": {"thread_id": thread_id},
             "metadata": {"business_scene": "enterprise_knowledge_assistant"},
+            "recursion_limit": 20,
         }
 
     @staticmethod
@@ -162,6 +178,10 @@ class ReactAgent:
         """
         if mode == "messages":
             message, meta = chunk
+            from agent.runtime import current_run
+            runtime = current_run.get()
+            if runtime is not None and getattr(message, 'usage_metadata', None):
+                runtime.usage.setdefault('agent', []).append(message.usage_metadata)
             # 只转发 agent 节点产出的正文。工具节点的输出已经由
             # tool_result 事件单独给出，这里再推一次会重复。
             if meta.get("langgraph_node") == "agent":

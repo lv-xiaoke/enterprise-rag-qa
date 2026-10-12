@@ -6,9 +6,9 @@
 # "Hit@1=1.000" 变成一个随环境漂移的数字。
 
 # ---- LLM 应用框架 ----
-langchain==0.3.7                  # LLM 应用开发框架
+langchain==0.3.27                 # 与 core 的 langsmith 版本约束兼容
 langchain-core==0.3.86            # 核心抽象（消息、工具、Runnable）
-langchain-community==0.3.7        # 社区集成
+langchain-community==0.3.27       # 社区集成
 
 # ---- Agent 编排 ----
 langgraph==0.2.50                 # create_react_agent / MemorySaver
@@ -16,7 +16,7 @@ langgraph==0.2.50                 # create_react_agent / MemorySaver
 # ---- 向量库与文档处理 ----
 langchain-chroma==0.1.4           # Chroma 集成
 chromadb==0.5.15                  # 向量库（本地持久化）
-langchain-text-splitters==0.3.2   # 递归字符切分
+langchain-text-splitters==0.3.11  # 递归字符切分
 pypdf==5.1.0                      # PDF 解析
 
 # ---- 检索 ----
@@ -40,3 +40,14 @@ python-dotenv==1.2.2              # 从 .env 读 API Key；不覆盖已存在的
 # ---- 开发与测试 ----
 pytest==9.1.1                     # tests/
 httpx==0.28.1                     # FastAPI TestClient 依赖
+
+# ---- 全栈业务与持久化 ----
+sqlalchemy==2.0.35
+alembic==1.13.3
+psycopg[binary,pool]==3.2.3
+argon2-cffi==23.1.0
+python-multipart==0.0.22
+langgraph-checkpoint==2.1.2
+langgraph-checkpoint-postgres==2.0.9
+langgraph-checkpoint-sqlite==2.0.11
+aiosqlite==0.21.0                # checkpoint 2.x uses Thread.is_alive()

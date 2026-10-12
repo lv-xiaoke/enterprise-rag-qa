@@ -1,0 +1,31 @@
+name: verify
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: {POSTGRES_USER: agent, POSTGRES_PASSWORD: test-only-password, POSTGRES_DB: agent}
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U agent -d agent" --health-interval 5s --health-retries 20
+    env:
+      ANONYMIZED_TELEMETRY: 'False'
+      DATABASE_URL: postgresql+psycopg://agent:test-only-password@127.0.0.1:5432/agent
+      TEST_POSTGRES_URL: postgresql+psycopg://agent:test-only-password@127.0.0.1:5432/agent
+      DEMO_PASSWORD: Test-only-password!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11', cache: pip}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm, cache-dependency-path: frontend/package-lock.json}
+      - run: pip install -r requirements.txt
+      - run: pip check
+      - run: python -m alembic upgrade head
+      - run: python -m backend.seed
+      - run: python -m pytest tests -q
+      - run: npm ci && npm run typecheck && npm test && npm run build
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium && npm run test:e2e
+        working-directory: frontend

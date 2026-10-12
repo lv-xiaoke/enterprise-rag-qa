@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+!.env.example
+.venv*
+**/__pycache__
+frontend/node_modules
+frontend/dist
+frontend/playwright-output
+runtime
+*.log
+chroma_db
+.agents
+.codex

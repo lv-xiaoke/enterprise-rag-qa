@@ -43,6 +43,7 @@ def _current_chat_model():
 # 只存「最后一次」检索：一次 rag_summarize 调用对应一次检索，
 # 多轮工具调用时展示的自然是最后一轮（即生成最终答案所依据的那一批）。
 _last_docs: ContextVar[list[Document]] = ContextVar("last_retrieved_docs", default=[])
+retrieval_evidence: ContextVar[list[Document] | None] = ContextVar('retrieval_evidence', default=None)
 
 
 def last_retrieved_docs() -> list[Document]:
@@ -99,6 +100,9 @@ class RagSummarizeService(object):
     def retriever_docs(self, query: str) -> list[Document]:
         docs = self.retriever.invoke(query)
         _last_docs.set(docs)
+        collector = retrieval_evidence.get()
+        if collector is not None:
+            collector.extend(docs)
         return docs
 
     def rag_summarize(self, query: str) -> str:

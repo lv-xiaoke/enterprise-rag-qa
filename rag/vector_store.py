@@ -2,7 +2,8 @@ from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from utils.config_handler import chroma_conf
 
-from model.factory import embed_model
+# Optional injection point for tests; build embeddings only when a store is used.
+embed_model = None
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from utils.path_tool import get_abs_path
@@ -46,6 +47,8 @@ def build_retriever(vector_store, k: int, kind: str):
 
 class VectorStoreService:
     def __init__(self):
+        from model.factory import build_embedding_model
+
         # 这里一度加过 client_settings=Settings(anonymized_telemetry=False)，
         # 想关掉 chromadb 的遥测报错。结果它不但没关掉（原因见
         # utils/logger_handler.py 的说明），还引入了一个更严重的 bug：
@@ -59,7 +62,7 @@ class VectorStoreService:
         # 默认分支（Settings(is_persistent=True) + persist_directory）。
         self.vector_store = Chroma(
             collection_name=chroma_conf["collection_name"],
-            embedding_function=embed_model,
+            embedding_function=embed_model if embed_model is not None else build_embedding_model(),
             persist_directory=chroma_conf["persist_directory"],
         )
 

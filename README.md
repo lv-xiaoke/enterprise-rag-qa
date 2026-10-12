@@ -1,445 +1,89 @@
-# 企业知识库 Agent 助手
+# 知序 · 企业知识与事务 AI 助手
 
-基于 LangGraph 工具调用 Agent + 混合检索 RAG 的企业内部知识助手。支持制度问答、
-个人业务数据查询与周报生成，**每一处优化都有可复现的评测数据支撑**。
+React/TypeScript + FastAPI + LangGraph 的个人全栈项目，支持登录、流式问答、文档版本管理、本人模拟业务查询和周报编辑保存。由 AI 辅助开发，学习与面试材料见 [代码导读](docs/interview/code-walkthrough.md)。
 
-> 这是一个演示项目，知识库文档与员工数据均为模拟数据，不接入任何真实系统。
+所有企业文档和个人业务记录均为模拟数据。真实模型效果未实测，实际检查结果见 [验证记录](docs/verification-v1.md)。
 
----
+## 第一版功能
 
-## 一、量化结果
+- 服务端会话登录、HttpOnly Cookie、Origin/CSRF 校验，员工和管理员角色。
+- 自己的会话、消息和周报；SSE 流式回答、工具状态、取消、失败与重启中断状态。
+- PostgreSQL 业务数据和 LangGraph checkpoint；本地开发支持 SQLite。
+- 管理员上传 TXT/PDF，异步处理、失败重试、更新成功再激活版本、停用过滤；历史引用保留。
+- Chroma 向量 + BM25/RRF 混合检索，两路只使用同一有效版本集合。
+- 周报草稿由用户编辑确认后保存；个人查询权限由工具代码校验。
 
-调优不是靠感觉，而是靠一套 30 题的评测集（25 题检索 + 5 题应拒答）跑出来的。
-评测集覆盖 6 篇制度文档、7 个业务类别，每题标注期望命中的来源文档与参考答案。
+第一版按单进程部署；没有多副本控制、OCR、部门知识 ACL 或真实企业系统对接。Streamlit `app.py` 保留为本地辅助演示，不使用新版登录权限模型，不作为生产入口。
 
-### 检索层
+## 本地运行（Python 3.11 / Node 22+）
 
-| 配置 | Hit@1 | Hit@3 | MRR | P@3 |
-|---|---|---|---|---|
-| chunk=200 + 纯向量 | 0.880 | 1.000 | 0.940 | 0.587 |
-| chunk=200 + 混合检索 | 1.000 | 1.000 | 1.000 | 0.573 |
-| chunk=100 + 纯向量 | 1.000 | 1.000 | 1.000 | **0.760** |
-| chunk=100 + 混合检索 | 1.000 | 1.000 | 1.000 | 0.733 |
+首次从仓库根目录执行。保留你已有的 `.env`；需要时参考 `.env.example` 自行配置，切勿把真实 Key 和密码提交到 Git。
 
-- `Hit@k`：期望文档是否出现在前 k 条里。`MRR`：期望文档排名的倒数和。
-  `P@k`：前 k 条里有多少条是相关的——衡量**塞进上下文的内容有多纯**。
-- **纯向量下，切分粒度是最大的杠杆**：`chunk_size` 从 200 改到 100，`Hit@1`
-  从 0.880 升到 1.000，`P@3` 从 0.587 升到 0.760（+29%）。原因见
-  「分块边界对齐语义边界」一节。
-
-### 分块粒度扫描：两种策略各扫一遍
-
-单看 `chunk=100` 那一行，混合检索的 `P@3`（0.733）反而低于纯向量（0.760），
-看上去是「加了 BM25 更差了」。单点对比说明不了任何事——25 道题下 1 道题就是
-0.04。所以把两种策略 × 7 个 `chunk_size` 全部扫了一遍：
-
-```
-              纯向量                          混合检索
-chunk  块数   Hit@1   MRR    P@3      Hit@1   MRR    P@3
-   80    33   0.960  0.980  0.760     1.000  1.000  0.773
-  100    30   1.000  1.000  0.760     1.000  1.000  0.733
-  120    23   1.000  1.000  0.733     1.000  1.000  0.693
-  150    18   0.960  0.980  0.733     1.000  1.000  0.693
-  200    13   0.880  0.940  0.587     1.000  1.000  0.573
-  300     9   0.880  0.940  0.533     0.960  0.973  0.520
-  500     6   0.880  0.933  0.333     0.960  0.980  0.333
+```powershell
+python -m venv .venv-v1
+.\.venv-v1\Scripts\Activate.ps1
+$env:PYTHONUTF8='1'
+python -m pip install -r requirements.txt
+python -m pip check
+# 默认使用 SQLite；使用 PostgreSQL 时设置自己的 DATABASE_URL。
+$env:DEMO_PASSWORD='替换成至少12位的演示密码'
+$env:APP_ORIGIN='http://127.0.0.1:5173'
+python -m alembic upgrade head
+python -m backend.seed
+python -m backend.serve
 ```
 
-复现：`python -m eval.tune_chunking`（`--strategy vector` 可只跑一种）
+另一个终端：
 
-**跨 7 个配置的方向一致性**（`Hit@k` 固定 k=3）：
-
-| 指标 | 混合更优 | 持平 | 纯向量更优 |
-|---|---|---|---|
-| Hit@1 | **5** | 2 | **0** |
-| MRR | **5** | 2 | **0** |
-| P@3 | 1 | 1 | **5** |
-
-混合检索**一次都没在 `Hit@1`/`MRR` 上输过**；`P@3` 则 7 次里输了 5 次。
-这不是「谁更好」，而是一次干净的权衡：
-
-- **BM25 买到的是排序鲁棒性。** `chunk_size` 取 80 或 150 时，纯向量的 `Hit@1`
-  掉到 0.960，混合检索仍是 1.000——切分边界切得不巧时，词面匹配把正确文档
-  重新拽回第 1 位。`chunk_size` 从 200 一路放大到 500（整篇一个块），
-  纯向量掉到 0.880，混合检索仍守住 0.960。
-- **代价是 1 个上下文席位。** `P@3` 多数配置下低于纯向量。BM25 只认词面，
-  问「年假」时它会把所有出现「年假」二字的块都往上抬，其中一些并不是答案所在。
-
-> **这个结论的强度要说清楚。** `Hit@1` 那 5 次「更优」里，2 次只差 1 道题
-> （0.960 vs 1.000），最大的一次差 3 道题（200 处的 0.880 vs 1.000）。
-> 单看任何一格，都落在 25 道题的噪声里。可信的部分是**方向**：7 个配置
-> 全都指向同一侧，而「谁赢」与 `chunk_size` 无关——这种一致性比任何单点
-> 差值都更能说明混合检索确实带来了排序增益。
-> 但它**不是 7 次独立试验**（7 个配置共用同一批 25 道题、切分还互相重叠），
-> 所以不能拿它算显著性。要严格验证，需要更难的数据：多跳问题、跨文档问题、
-> 以及大量同义改写的提问——那种数据上纯向量的词面短板才会被放大。
-
-### 这条曲线怎么读，以及为什么取 100
-
-`P@3` 随 `chunk_size` **单调不增**（两种策略都是）：
-
-```
-P@3   0.773    0.760    0.733    0.693    0.587    0.520    0.333
-chunk    80      100      120      150      200      300      500
+```powershell
+cd frontend
+npm ci
+npm run dev
 ```
 
-而 `Hit@1` 一直撑到 300 才松动。也就是说**块切大了并不会丢失正确的文档，
-它污染的是上下文**——正确文档还在 top-3 里，但旁边挤进来两个无关块。
+访问 `http://127.0.0.1:5173`。账号 `admin` 管理公共知识文档，员工账号 `E1001`、`E1002`、`E1003` 查询本人模拟记录；密码为初始化时设置的值。幂等 seed 不覆盖现有账号密码。不要交替使用 localhost 与 127.0.0.1，写请求 Origin 必须与 APP_ORIGIN 完全一致。
 
-选 `chunk_size=100` 依据的是**文档结构**，不是这张表的 argmax：
-6 篇文档结构统一、共 30 个小节，而 100 恰好把 30 个小节切成 30 块——
-6 篇**全部**是 5 节 → 5 块，一个不差。
+问答前由管理员上传 `data/enterprise/` 中的 TXT 文档。默认 `DEEPSEEK_API_KEY` 供对话与总结使用；模型选择见 `config/rag.yml`。本地 BGE embedding 首次需联网下载模型，其后可使用缓存。API 启动、登录和周报 CRUD 不需要模型 Key，缺 Key 的问答会显示生成失败。
 
-> 这点值得单独说：上一版配置 `chunk_size=120` **只有
-> `it_support_policy.txt` 恰好对齐**，另外 5 篇都会合并相邻小节
-> （onboarding / project 各只剩 3 块），总共 23 块。拿单个文件的对齐
-> 当成「边界完全对齐」的证据，是在挑数据。
+Windows PostgreSQL 异步连接需 SelectorEventLoop，`backend.serve` 已配置。不要用多个 Uvicorn worker 运行本版本。真实文件、向量与本地数据库默认保存在 runtime，不能随意清理。
 
-为什么不取 `P@3` 更高的 80：80 会把小节从中间切断——
-`it_support_policy.txt` 的「三、故障处理」被劈成两个半块，正确文档被稀释成
-两个都不太像的半块，纯向量的 `Hit@1` 因此掉回 0.960。
-在这组扫描粒度里，**100 是唯一既不切断、也不合并小节的值**：80 偏小会切断，
-120 偏大会合并。
+## Docker Compose
 
-### 生成层
+先在当前终端设置你自己的 `POSTGRES_PASSWORD`（建议随机字母数字）和 `DEMO_PASSWORD`；不要在版本控制内保存真实值。密码含 URL 特殊字符时 DATABASE_URL 需要编码。
 
-`eval/run_eval.py` 已实现基于 LLM-as-judge 的生成层指标（忠实度、相关性、
-拒答正确率），**但尚未在真实模型上跑出结果**——本机缺少 `DEEPSEEK_API_KEY`。
-检索层指标不需要任何 API Key，可独立复现。
-
----
-
-## 二、架构
-
-```
-                   用户提问
-                        │
-        ┌───────────────┴───────────────┐
-        ▼                               ▼
-  Streamlit app.py              FastAPI api/server.py
-  （演示界面）                   （SSE 流式接口，供 OA / IM 机器人调用）
-        │                               │
-        └───────────────┬───────────────┘
-                        │
-              ┌─────────▼─────────┐
-              │  入口绑定身份      │  set_current_employee(employee_id)
-              │  （ContextVar）    │  ← 按请求隔离，并发不串
-              └─────────┬─────────┘
-                        │
-              ┌─────────▼─────────┐
-              │  LangGraph Agent  │  create_react_agent + MemorySaver
-              │  工具调用循环      │  thread_id 维度的多轮记忆
-              └─────────┬─────────┘
-                        │ 模型决定调用哪个工具
-        ┌───────────────┼───────────────┬──────────────────┐
-        ▼               ▼               ▼                  ▼
-  rag_summarize   get_employee_id  get_employee_      generate_weekly_
-        │                          department         report_context
-        │               └──────────────┴──────────────────┘
-        │                              │
-        │                    ┌─────────▼──────────┐
-        │                    │ 越权校验（代码层）  │  _deny_if_not_self
-        │                    │ 非本人 → 拒绝+告警  │
-        │                    └─────────┬──────────┘
-        │                              │
-┌───────▼──────────────┐     ┌─────────▼──────────┐
-│  HybridRetriever     │     │ employee_records   │
-│  BM25 ─┐             │     │ .csv（模拟数据）    │
-│        ├─ RRF 融合   │     └────────────────────┘
-│  向量 ─┘             │
-└───────┬──────────────┘
-        │
-┌───────▼──────────────┐
-│ Chroma（本地持久化）  │ ← fastembed BGE 本地向量化，无需联网
-└──────────────────────┘
+```powershell
+$env:POSTGRES_PASSWORD='替换为随机数据库密码'
+$env:DEMO_PASSWORD='替换成至少12位的演示密码'
+$env:APP_ORIGIN='http://localhost:8080'
+docker compose config --quiet
+docker compose up --build -d
 ```
 
-### 数据流要点
+默认同源入口 `http://localhost:8080`，PostgreSQL 不对外映射端口。启动顺序是数据库健康 → Alembic → seed → 单进程 API → Nginx。业务数据与 runtime 使用命名 volume，SSE 代理关闭缓冲。远程生产部署应使用 HTTPS、设置 `COOKIE_SECURE=true` 与实际 APP_ORIGIN，并自行配置入口端口；默认仅绑定本机。
 
-1. **入口绑定身份**，工具只读当前请求绑定的身份，不读全局变量。
-2. **模型决定调用哪些工具**——工具选择由模型的结构化输出能力完成，
-   不靠文本解析 `Action: xxx`。
-3. **越权在代码层拦截**，提示词只负责解释拒绝原因，不承担安全职责。
-4. **检索结果由业务路径登记**，界面直接读取，不再重复检索一次。
-5. **两种入口共用同一个 Agent**：Streamlit 与 FastAPI 调的是同一套 `ReactAgent`
-   与工具层，差别只在同步 `stream_events` 还是异步 `astream_events`。
-   业务逻辑只有一份，界面换掉不影响接口。
+当前机器首次完整构建因 Docker Hub Node 基础镜像连接超时失败，具体恢复结果见验证记录。配置文件存在不代表已完成线上部署。禁止批量删除文件或卷来解决启动问题。
 
----
+## 验证与评测
 
-## 三、关键设计决策
-
-### 1. 从文本 ReAct 换成工具调用
-
-旧实现用 `langchain.agents.create_react_agent` + `AgentExecutor`，靠**文本解析**
-识别 `Action: xxx` / `Action Input: xxx`。模型少写一个冒号就整轮解析失败，
-旧代码因此挂了个 `handle_parsing_errors` 兜底——那是在给解析器的脆弱性打补丁。
-
-换成 LangGraph 的工具调用后：解析失败这一整类问题从根上消失，工具签名可以是
-强类型的（`Literal[...]` 枚举由 schema 保证合法），也不需要再手工 strip 引号和
-按逗号切分参数字符串。
-
-### 2. 分块边界对齐语义边界（本项目最大的收益）
-
-知识库的 6 篇文档结构一致：标题 + 五个小节，共 30 个小节，每节 50~90 字，
-节间空行分隔。这些小节是语义上不可再分的单元。
-
-`chunk_size=200` 会把两节合进同一个块。实测 `it_support_policy.txt` 的
-「三、故障处理」（VPN 无法登录）和「四、数据安全」（禁止拷贝到个人网盘）
-被合成了同一块——于是这一个块**同时对两类毫不相干的问题都有较高相似度**，
-变成挤占 top-k 席位的「万金油块」，把真正相关的块往下压。
-
-`chunk_size=120` 时只有 `it_support_policy.txt` 恰好对齐（5 节 → 5 块），
-另外 5 篇都会合并相邻小节，总共 23 块。改到 100 后：30 个小节切成 30 块，
-6 篇全部 5 节 → 5 块。
-
-这类问题的隐蔽之处：`Hit@k` 完全看不出来（正确文档照样在 top-k 里），
-只有 `P@k` 会掉——上下文里塞满无关内容，白烧 token 还容易诱导模型答偏。
-
-### 3. 身份来自会话，不是随机数
-
-早期实现里 `get_employee_id` 返回 `random.choice(employee_ids)`，
-于是「我的年假还剩几天」的答案取决于一次随机抽样。这既是正确性缺陷
-（同问题两次回答不同、无法复现），也是安全问题（可能返回他人数据）。
-
-现在身份由入口通过 `set_current_employee()` 注入，用 `ContextVar` 存储——
-全局变量在并发下会被互相覆盖（A 的请求写入身份，B 的请求读到却以为是自己的），
-`ContextVar` 天然按执行上下文隔离。
-
-### 4. 越权拦截写在代码里，不写在提示词里
-
-提示词约束是「建议」，模型可以选择不听——把安全边界建立在提示词上等于没有边界。
-`fetch_employee_records` / `get_employee_department` 会校验请求的
-`employee_id` 是否等于当前登录身份，不等直接拒绝，并以 **warning** 级别记录
-安全日志（info 级别的日志在实际运维里等于不存在，事后无法检索）。
-
-`tests/test_agent_tools.py` 用「金丝雀数据」验证拒绝路径不透出目标记录的任何字段。
-
-> 这里踩过一个坑值得记下来：最初的越权测试是**空**的。模拟数据里
-> `leave_balance_days='3'`，而断言写的是 `assert '3' not in 拒绝文案`——
-> 单字符子串匹配让这句断言恒真，无论实现对错都通过。
-> 换成多字符金丝雀数据后才真正验证了「拒绝路径没有读过目标记录」。
-
-### 5. 混合检索：BM25 + 向量 + RRF
-
-纯向量检索有两个已知短板：对数字、专有名词的词面匹配弱；对「万金油块」缺乏抵抗力。
-BM25 补词面，RRF（k=60）做排名融合——它只依赖排名而非分数，因此不需要
-归一化两路分数量纲。
-
-中文 BM25 需要先分词，这里用**字符二元组**切分，省掉 jieba 依赖且对
-「年假」「报销」这类制度术语效果足够。
-
-### 6. 增量入库台账的自愈
-
-`md5_enterprise.txt` 记录已入库文件的 MD5，避免重复向量化。但它和向量库是两个
-独立的文件，可以各自被删、被替换、被回滚。**一旦台账还在而向量库丢了，
-每个文件都会被判定成「已入库」跳过，知识库永远是空的，而且不报任何错。**
-
-这个 bug 真实发生过：向量库重建后忘了删台账，检索指标从 `Hit@1=1.000`
-直接掉成 `0.000`，而日志里只有一行平静的「内容已经存在知识库内，跳过」。
-
-现在 `load_document()` 会检测「集合为空但台账非空」这一失配，判定台账失效并
-清空重来。
-
-### 7. 引用来源由业务路径回传，不在界面层重检索
-
-界面需要展示引用来源，直觉做法是拿原始提问再检索一次，但那样有两个问题：
-每次提问白白多跑一遍 embedding + BM25（这条链路上最贵的两步）；而且
-**Agent 会改写查询**再调 `rag_summarize`，用原始提问重检索得到的往往不是
-模型实际读到的那些块——用户看到的「依据」和答案的真实依据对不上。
-
-改成 `rag_service` 用 `ContextVar` 登记本次检索结果，界面直接读。
-
-### 8. 结构化事件流
-
-`ReactAgent.stream_events()` 产出 `tool_call` / `tool_result` / `token` / `error`
-四类事件。界面把工具调用渲染成可折叠的「推理过程」，把 token 渲染成正文——
-用户能看到 Agent 在查什么，而不是对着一个转圈干等；同时也能**验证**答案是
-查出来的而不是编出来的。
-
-### 9. 服务化：FastAPI + SSE，与一个「必须走异步」的理由
-
-Streamlit 适合演示，但它不是能被别的系统调用的形态。真实的企业助手通常要挂在
-OA、IM 机器人、内部搜索框后面，所以有 `api/server.py`：三个接口
-（`/health`、`/employees`、`POST /chat`）加一个会话清理。
-
-**为什么是 SSE 而不是 WebSocket**：这条链路是单向的——客户端发一次提问，
-服务端持续推 token，推完即结束。SSE 正好是这个形状：普通 HTTP、浏览器原生
-自动重连、不需要协议握手，也更容易穿过企业网关（WebSocket 常被代理挡掉）。
-双向通信能力这里用不上。
-
-**为什么服务端不能复用同步的 `stream_events`**：它是阻塞的，在 FastAPI 里只有
-两个选择，都不好。直接在协程里迭代会阻塞整个事件循环，一个慢请求卡住所有并发
-请求；交给线程池迭代则会踩到一个很隐蔽的坑——Starlette 的
-`iterate_in_threadpool` 是**每个元素一次** `run_sync`，每次调用都拿事件循环
-上下文的**副本**。于是「在生成器开头 set 一次 ContextVar」这种写法会失效：
-第一轮设好的身份，到第二轮就被还原成默认值了。工具层读到空身份，
-`_deny_if_not_self` 的越权校验随之静默失效——**不报任何错**。
-
-所以服务端走 `astream_events`（LangGraph 的 `astream`），整段都在事件循环的
-同一个任务上下文里。`tests/test_api.py` 里有一个并发用例专门盯这件事：两个
-不同身份的请求 `asyncio.gather` 同时在飞，断言各自工具实际读到的身份。
-这个用例做过变异验证——把身份绑定改成空操作后它确实会失败，不是摆设。
-
-**可观测性**：每个请求汇总成一行日志，含首字延迟（TTFT）、总耗时、chunk 数、
-工具调用序列。TTFT 单独记，因为用户体感上「卡不卡」几乎只取决于它：总耗时
-8 秒但 0.5 秒就出字，比 3 秒憋出一整段要好受得多。日志放在 `finally` 里，
-客户端中途断连也能留下痕迹，否则「请求为什么没输出」在日志里无从查起。
-
-### 10. 其他被修掉的问题
-
-- `app.py` 里有一处 `try/except Exception: pass` 包着检索器装配——装配失败会让
-  问答在「没有参考资料」的情况下继续跑，表现为答案质量莫名下降，是最难定位的
-  一类线上问题。现在记 error 日志。
-- 界面上拖动 Top-K 曾经会**悄悄退化成纯向量检索**（旧代码自建
-  `as_retriever(search_kwargs=...)`，丢掉了 `retriever_type` 配置）。
-- 模型切换曾硬编码 `ChatTongyi`，provider 切到 deepseek 后会把 `deepseek-chat`
-  这个模型名塞给通义 SDK。
-- 删掉了 `print_prompt` 调试节点（每次问答把整段知识库原文写进 stdout）、
-  死代码 `agent/tools/middleware.py`（引用了本项目不存在的 `fill_context_for_report`
-  工具，以及所锁版本里并不存在的 `langchain.agents.middleware` 模块）。
-- **失败曾经伪装成成功**：构建执行图会去取对话模型，缺 API Key 时就在那里抛
-  `ProviderError`。而这行代码原本在 `try` 外面，异常直接穿出异步生成器；此时
-  响应头已经发出（200 + `text/event-stream`），状态码改不了，`finally` 里的
-  `done` 照发——客户端收到的是「开始 → 结束」和一个空回答，日志是一行
-  `ttft=n/a chunks=0` 的 INFO，看起来像模型这次没说话。现在构建图放进 `try`，
-  服务层再兜一层，失败一律变成显式的 `error` 事件 + ERROR 级日志。
-  这一组行为有 5 个用例专门盯着（`TestFailureIsVisible`、`TestGraphBuildFailure`），
-  且做过变异验证：把修复逐条改回去，对应用例确实会红。
-- **入库台账与向量库失配的自愈**（见设计决策 6）此前没有任何测试保护，
-  删掉那段逻辑全量测试照样全绿。现补上 8 个用例，
-  同样做过变异验证——禁用自愈后 5 个用例失败、3 个基线用例仍过。
-
----
-
-## 四、快速开始
-
-```bash
-pip install -r requirements.txt
-
-# 配置模型 Key（默认 provider 为 deepseek，见 config/rag.yml）
-cp .env.example .env                          # Windows: copy .env.example .env
-# 然后编辑 .env，填入 DEEPSEEK_API_KEY
-
-# 也可以直接用环境变量——它的优先级**高于** .env，CI / 容器里用这个
-export DEEPSEEK_API_KEY="your-api-key"        # Windows: $env:DEEPSEEK_API_KEY="..."
-
-# 知识库入库（增量，可重复执行）
-python -m rag.vector_store
-
-# 启动对话界面
-streamlit run app.py
-
-# 或启动 HTTP 服务（SSE 流式），接口文档在 http://127.0.0.1:8000/docs
-uvicorn api.server:app --reload
+```powershell
+python -m pytest tests -q
+cd frontend
+npm run typecheck
+npm test
+npm run build
+npx playwright install chromium
+npm run test:e2e
 ```
 
-Embedding 使用 **fastembed + BAAI/bge-small-zh-v1.5**（512 维），
-走 ONNX 运行时，首次运行会自动下载模型，之后完全离线，不产生 embedding 费用。
+浏览器验收启动独立测试服务和临时数据，使用模型与 embedding 替身，真实执行 HTTP、业务数据库与 Chroma；不调用真实付费模型。每次输出保存在新的 `frontend/playwright-output/<时间戳>`，不自动批量清理。可选设置 `TEST_POSTGRES_URL` 对专用测试库运行真实 PostgreSQL checkpoint 重启和清空测试；CI 也运行该测试。
 
-## 五、评测与测试
+[评测口径](docs/evaluation-v1.md) 解释独立 30 题测试集、实际证据收集与正确性评分。保留 [原版 RAG 调参实验](docs/legacy-rag-experiments.md)，其中来源文件命中率不等于分块正确率或回答准确率，也不代表新版动态知识库的端到端效果。原版实验工具可能自动清理其临时目录，遵守本仓库禁止批量删除约束时不要直接运行该清理流程。
 
-```bash
-# 检索层评测（不需要 API Key）
-python -m eval.run_eval --retriever hybrid --mode retrieval
-python -m eval.run_eval --retriever vector --mode retrieval
+## 阅读顺序
 
-# 生成层评测（需要 API Key，走 LLM-as-judge）
-python -m eval.run_eval --retriever hybrid --mode all --pipeline agent
-
-# 分块粒度扫描
-python -m eval.tune_chunking
-
-# 单元测试（不需要 API Key、不需要向量库）
-python -m pytest tests/ -q        # 53 项
-```
-
-接口调用（`-N` 关掉 curl 缓冲，否则看不到流式效果）：
-
-```bash
-curl -N -X POST http://127.0.0.1:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message":"年假有几天？","employee_id":"E1001"}'
-```
-
-返回的是具名 SSE 事件，客户端可直接 `addEventListener("tool_call", ...)` 分派：
-
-```
-event: start      data: {"thread_id":"..."}
-event: tool_call  data: {"name":"rag_summarize","args":{...}}
-event: tool_result data: {"name":"rag_summarize","content":"..."}
-event: token      data: {"content":"年假"}
-event: sources    data: {"sources":[{"title":"文本块 1",...}]}
-event: done       data: {"thread_id":"..."}
-```
-
-`eval/golden_set.jsonl` 每题的结构：
-
-| 字段 | 含义 |
-|---|---|
-| `id` / `category` | 题号 / 业务类别（hr、finance、it、security、project、onboarding、refusal） |
-| `question` | 提问原文 |
-| `expected_sources` | 期望命中的来源文档（拒答题为空） |
-| `reference_answer` | 参考答案，供 judge 打分 |
-| `should_refuse` | 是否应拒答（5 题，考察模型会不会硬编） |
-| `note` | 出题意图，例如「是非型，期望模型明确给出否定结论」 |
-
-## 六、目录结构
-
-```text
-.
-├── app.py                      # Streamlit 界面：推理过程展示、身份切换、来源引用
-├── api/server.py               # FastAPI + SSE：/health、/employees、/chat、会话清理
-├── agent/
-│   ├── react_agent.py          # LangGraph 工具调用 Agent：记忆、事件流、图重建
-│   └── tools/agent_tools.py    # 业务工具 + 身份绑定 + 越权拦截
-├── rag/
-│   ├── vector_store.py         # 入库（含台账自愈）、切分、检索器装配
-│   ├── hybrid_retriever.py     # BM25 + 向量 + RRF
-│   └── rag_service.py          # 检索与总结链、引用来源登记
-├── model/factory.py            # provider 注册表：deepseek / dashscope / 本地 embedding
-├── eval/
-│   ├── golden_set.jsonl        # 30 题评测集
-│   ├── metrics.py              # Hit@k / MRR / P@k / 生成层指标
-│   ├── run_eval.py             # 评测入口，输出 report_*.md 与 results_*.json
-│   └── tune_chunking.py        # 分块粒度扫描实验
-├── tests/                      # pytest 53 项：越权拦截、事件流契约、记忆隔离、
-│                               #              SSE 协议、并发身份隔离、失败可见性、
-│                               #              入库台账自愈
-├── prompts/                    # Agent / RAG / 周报提示词
-├── config/                     # agent.yml / chroma.yml / rag.yml / prompts.yml
-└── data/
-    ├── enterprise/             # 6 篇制度文档（知识库）
-    └── enterprise_external/    # 员工模拟数据 CSV
-```
-
-## 七、已知局限
-
-诚实列出，避免过度解读已有结论：
-
-1. **检索评测集区分力不足**：25 道题、每道题 1 个正例，1 道题就是 0.04。
-   「混合检索更优」的结论靠的是跨 7 个 `chunk_size` 的**方向一致性**，
-   不是任何单格的差值——单格差异全部落在噪声里。要拿到可信的效应量，
-   需要多跳问题、跨文档问题、同义改写的难题集（见第一节末尾的说明）。
-2. **生成层指标未跑出真实结果**，缺 `DEEPSEEK_API_KEY`。代码已就绪。
-3. **知识库规模小**（6 篇文档，`chunk_size=100` 下 30 个块）。BM25 与 RRF
-   的收益在大规模语料上才会充分体现，当前数据量下结论不宜外推。
-4. **记忆用的是 `MemorySaver`**，进程重启即丢失。生产应换
-   `SqliteSaver` / `PostgresSaver`。
-5. **身份切换是界面上的模拟登录**，不是真实鉴权。HTTP 接口同样如此：
-   `employee_id` 由客户端在请求体里声明，服务端只校验「这个 ID 存在」，
-   不校验「你是不是这个人」。真实系统身份应来自 SSO 会话或网关签发的令牌，
-   且越权校验应下沉到数据访问层。接口也没有限流、没有鉴权中间件、
-   没有超时与重试——它是一个能把架构讲清楚的**服务化骨架**，不是可直接
-   上线的服务。
-6. **`P@3` 的权衡只验证了方向**：混合检索在 7 个配置里 5 次低于纯向量，
-   方向一致；但每次的差距（如 0.760 vs 0.733）都不到 1 道题，
-   不能据此断言「混合检索一定更脏上下文」。
-7. **`chunk_size=100` 是照文档结构选的，不是照 `P@3` 的 argmax 选的**。
-   两者在本次扫描里恰好一致，但样本只有 6 篇结构高度同构的文档——
-   换个知识库需要重新看边界，不能直接套用 100。
-
-## 八、注意事项
-
-本项目使用模拟企业制度文档与模拟员工数据，不接入真实公司系统。
-演示与展示时请勿放入真实员工隐私、客户信息、合同或源代码等敏感数据。
+1. [架构与一分钟介绍](docs/interview/architecture.md)
+2. [请求链路、代码入口与三个练习](docs/interview/code-walkthrough.md)
+3. [演示脚本](docs/interview/demo-script.md)
+4. [面试追问](docs/interview/questions.md)
+5. [简历描述与能力边界](docs/interview/resume-evidence.md)
+6. [执行计划](docs/superpowers/plans/2026-10-12-ai-fullstack-v1.md) / [执行进度](docs/execution-progress.md)
