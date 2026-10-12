@@ -2,6 +2,7 @@
 prepare -> restart backend -> verify; state contains resource IDs, no credentials.
 """
 import argparse
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -9,13 +10,14 @@ import uuid
 import httpx
 
 
+@contextmanager
 def login(base_url, username):
-    client = httpx.Client(base_url=base_url, timeout=30)
-    csrf = client.get('/api/auth/csrf').json()['csrf_token']
-    client.headers.update({'Origin':base_url,'X-CSRF-Token':csrf})
-    response = client.post('/api/auth/login',json={'username':username,'password':os.environ['DEMO_PASSWORD']})
-    response.raise_for_status()
-    return client
+    with httpx.Client(base_url=base_url, timeout=30, trust_env=False) as client:
+        csrf = client.get('/api/auth/csrf').json()['csrf_token']
+        client.headers.update({'Origin':base_url,'X-CSRF-Token':csrf})
+        response = client.post('/api/auth/login',json={'username':username,'password':os.environ['DEMO_PASSWORD']})
+        response.raise_for_status()
+        yield client
 
 
 def main():
@@ -24,8 +26,11 @@ def main():
     parser.add_argument('--base-url',default='http://127.0.0.1:18080')
     parser.add_argument('--state',type=Path,default=Path('runtime/compose-smoke.json'))
     args = parser.parse_args()
-    assert httpx.get(args.base_url+'/api/ready').status_code == 200
-    assert httpx.get(args.base_url+'/chat').status_code != 200 or 'text/html' in httpx.get(args.base_url+'/chat').headers.get('content-type','')
+    assert httpx.get(args.base_url+'/api/ready',trust_env=False).status_code == 200
+    page = httpx.get(args.base_url+'/chat',trust_env=False)
+    assert page.status_code == 200
+    assert 'text/html' in page.headers.get('content-type','')
+    assert 'id="root"' in page.text
     with login(args.base_url,'E1001') as first:
         if args.phase == 'prepare':
             marker = uuid.uuid4().hex

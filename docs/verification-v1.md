@@ -9,11 +9,16 @@
 | `python -m alembic upgrade head` | PostgreSQL 16 专用容器成功 |
 | `python -m backend.seed` | 成功，已有账号不会重设密码 |
 | 后端完整 pytest（含真实 PostgreSQL checkpoint） | 72 passed (23.76s)，含真实 PostgreSQL |
+| 最终 Linux 非 root 镜像完整 pytest | 72 passed (27.43s)，含专用 PostgreSQL；镜像内 pip check 通过 |
 | SQLite/PostgreSQL 断开重连与清空 checkpoint | 3 个相关测试通过（含 SSE 背压测试） |
 | 前端 typecheck / Vitest / build | 通过；SSE 解析 3 测试 |
 | Chromium 浏览器工作流 | 5 passed，37.5s：上传更新停用引用、周报持久化与隔离、停止后恢复历史、首次重复发送锁与周报编辑锁 |
 | `docker compose config --quiet` | 成功 |
-| Compose 完整构建与启动 | 首次拉取超时，独立重试后前端 Linux 镜像成功；后端依赖下载仍在进行，尚未宣称完整启动验收通过 |
+| 前后端 Linux 镜像构建 | 成功；基础镜像拉取超时后重试恢复，首次后端依赖下载约 36 分钟 |
+| Compose 完整启动 | PostgreSQL / 单进程 API / Nginx 成功，数据库与 API healthy |
+| 完整 Nginx 入口 API 验收 | prepare / 重启 backend / verify 全部通过：登录、CSRF、跨用户 404、周报保留/编辑、真实 PostgreSQL checkpoint 清空 |
+| 完整 Nginx 入口 Chromium 验收 | 重启前、重启后新建浏览器会话均通过：登录、周报读取、第二账号隔离及角色入口 |
+| GitHub Actions | 已配置；本地等效检查通过，未推送触发远程运行 |
 | 真实 LLM 生成评测 | 未执行，未实测 |
 | 云端部署 | 未执行 |
 
@@ -38,3 +43,18 @@ Playwright 输出保存在 `frontend/playwright-output/<时间戳>/`，每次新
 三张成功页面截图另复制到 `docs/screenshots/` 随项目保存，均来自确定性模型替身验收，不能用作真实模型回答质量证据。
 
 当前依赖产生 LangGraph serializer 与 Chroma/Pydantic 的弃用警告；测试通过不意味着长期无需升级。对性能、模型质量或云端运行不作推断。
+
+## 完整部署验收补充
+
+使用独立 Compose project `codex-ai-fullstack-v1` 和命名卷，测试入口为 `http://127.0.0.1:18080`；README 的默认入口仍为 8080。本次用 `.env.example` 显式作为 Compose env-file，终端注入独立测试密码，模型 Key 为空。没有读取或改写用户真实凭证，也没有批量清理文件或卷。
+
+```powershell
+# 在独立测试实例中先设置 DEMO_PASSWORD 为该实例的初始化密码。
+python tests/compose_smoke.py prepare --base-url http://127.0.0.1:18080
+# 使用创建实例时相同的 env-file / project / override 重启 backend。
+python tests/compose_smoke.py verify --base-url http://127.0.0.1:18080
+```
+
+API 验收脚本使用本机直连，避免环境 HTTP 代理把 loopback 请求转发为 502。Linux 容器启动前实际复现过非 root 用户导入 logger 时的目录权限错误；Dockerfile 已创建并授权 logs 目录，最终镜像的测试和实际启动均通过。生产入口浏览器截图为 `docs/screenshots/compose-reports.png`，展示真实部署的模拟业务数据，不涉及模型生成。
+
+直接依赖由 requirements 固定版本；Windows 全量依赖快照只对应已验证 Windows 环境，传递依赖的 Linux 解析结果单独由实际镜像测试验证。

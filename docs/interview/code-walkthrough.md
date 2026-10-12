@@ -27,3 +27,9 @@
 验收学习成果：独立讲清一条请求；定位一个错误码的来源；不让 Agent 代写，自己完成上面一个小改动并解释测试。
 
 审查修复导读：`ReactAgent._recover_incomplete_tools` 回退未配对的中断工具轮；`ToolNode(handle_tool_errors=False)` 让基础设施异常进入脱敏失败路径；启动恢复补建 interrupted 消息。对照 `tests/test_review_regressions.py` 阅读修复前后的失败行为。
+
+## 可以讲清楚的失败案例
+
+一次工具调用由带 tool_calls 的 AIMessage 和匹配 tool_call_id 的 ToolMessage 配对。如果进程在两条消息之间退出，checkpoint 中只剩工具调用；直接追加新问题会产生无效工具历史，下一轮也无法回答。修复是在新一轮开始前检查配对，回退未完成工具轮，保留用户问题和已完成历史。测试先构造这个持久化中断点，再关闭并重新创建 saver，确认下一轮成功且原问题仍在。
+
+这里没有自动重新执行工具，也没有补一条假的成功结果：未来若接入写操作，重复执行可能产生副作用。业务历史仍显示 interrupted，让用户知道上一次没有完成。面试时同时解释 checkpoint 和展示消息表的职责，不能把“页面保留文字”等同于“Agent 恢复了有效状态”。

@@ -61,7 +61,7 @@ docker compose up --build -d
 
 默认同源入口 `http://localhost:8080`，PostgreSQL 不对外映射端口。启动顺序是数据库健康 → Alembic → seed → 单进程 API → Nginx。业务数据与 runtime 使用命名 volume，SSE 代理关闭缓冲。远程生产部署应使用 HTTPS、设置 `COOKIE_SECURE=true` 与实际 APP_ORIGIN，并自行配置入口端口；默认仅绑定本机。
 
-当前机器首次完整构建因 Docker Hub Node 基础镜像连接超时失败，具体恢复结果见验证记录。配置文件存在不代表已完成线上部署。禁止批量删除文件或卷来解决启动问题。
+本机已完成前后端 Linux 镜像构建、Compose 启动和重启后的 API/新浏览器会话验收，记录见 [验证记录](docs/verification-v1.md)。尚未部署云端。禁止批量删除文件或卷来解决启动问题。
 
 ## 验证与评测
 

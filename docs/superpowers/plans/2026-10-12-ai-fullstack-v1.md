@@ -426,7 +426,7 @@ def test_other_user_cannot_read_messages(user_b_client, user_a_conversation):
 | 5 文档管理 | 完成 | backend/documents、文档路由/界面 | Chroma 版本/重复/失败/停用测试及浏览器流程通过 | 每次检索重建小语料 BM25，无 OCR |
 | 6 个人业务与周报 | 完成 | 数据库工具、周报路由/界面 | 工具授权、CRUD/隔离及浏览器持久化通过 | 业务记录为模拟数据 |
 | 7 评测可靠性 | 完成 | eval、独立 30 题、隔离回归 | 实际工具证据、独立线程、来源 ID 回归通过 | 真实模型指标未实测 |
-| 8 容器与 CI | 验证中 | Dockerfile、Compose、Nginx、CI、Playwright | config 通过，浏览器 3 passed；镜像构建中 | 首次 Docker Hub 拉取超时，重试恢复 |
+| 8 容器与 CI | 完成 | Dockerfile、Compose、Nginx、CI、Playwright | 前后端 Linux 构建与 Compose 启动通过；重启前后 API/新 Chromium 会话通过；Linux 72 passed | CI 已配置，未远程触发；没有云端部署 |
 | 9 面试材料 | 完成 | docs/interview、README | 依据实际代码编写五份材料与练习 | 用户仍需亲自学习与练习 |
 
-完整记录见 `docs/execution-progress.md` 和 `docs/verification-v1.md`；当前集成回归为后端 66 passed、前端 3 passed，最终独立审查进行中。原计划中的逐步复选框保留为实施检查清单，完成状态以本表和最终验证记录为准。
+完整记录见 `docs/execution-progress.md` 和 `docs/verification-v1.md`；最终后端 Windows/Linux 各 72 passed、前端 3 passed、Chromium 5 passed，typecheck/build 与完整 Compose 重启验收通过。独立审查的五项 Important 及入库线程退出问题均已修复并回归，无延期 Minor。原计划中的逐步复选框保留为实施检查清单，完成状态以本表和最终验证记录为准；真实模型评测、云端发布及用户学习验收分别保留明确边界。

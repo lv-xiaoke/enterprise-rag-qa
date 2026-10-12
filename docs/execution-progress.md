@@ -26,7 +26,7 @@
 - [x] 任务 5 文档管理
 - [x] 任务 6 个人业务与周报
 - [x] 任务 7 可靠性与评测
-- [ ] 任务 8 交付与验收
+- [x] 任务 8 交付与验收
 - [x] 任务 9 面试材料
 
 ## 集成记录（2026-10-12）
@@ -38,7 +38,7 @@
 - Task 5: complete — 真实 Chroma 版本更新、失败保留旧版、重复上传、停用和引用测试通过；浏览器流程通过。
 - Task 6: complete — 数据库个人工具与周报 CRUD/归属验证通过；浏览器保存、刷新和第二账号隔离通过。
 - Task 7: complete — 评测隔离/实际证据回归通过；独立 30 题按 8/6/6/5/5 编写，真实模型未实测已标明。
-- Task 8: partial — Compose config 通过，CI 配置完成；Chromium 3 passed (39.4s)。完整构建 Docker Hub Node 拉取超时；后端独立 Linux 构建进行中。
+- Task 8: complete — 前后端 Linux 镜像、完整 Compose 启动、重启前后 API 与新 Chromium 会话验收通过；Linux 非 root 镜像 72 passed (27.43s)。CI 已配置，未远程触发。
 - Task 9: complete — docs/interview 五份材料、README、原版文档版本说明已完成。
 - 集成验证：后端 66 passed (21.23s，含专用 PostgreSQL)；前端 typecheck、3 passed、生产 build 通过。
 
@@ -69,3 +69,9 @@
 
 - Final suite（追加真实 API 重启路径）：72/72 passed (23.76s)，真实 PostgreSQL；前端 3/3、build 通过；Chromium 5/5。
 - 容器进展：官方 Node/Nginx 拉取重试成功，最终前端 Linux 镜像构建成功；后端首次依赖下载进行中。
+- 容器修复：Linux 普通用户导入 logger 实测 RED（/app/logs PermissionError）；镜像创建并授权日志目录，隔离容器导入 GREEN。构建上下文排除本机 logs，避免继承属主与旧日志。
+- 最终交付：前后端镜像构建成功，完整 Compose 三服务运行；API prepare/verify 与新 Chromium 会话 prepare/verify 均通过，后端容器实际重启。容器测试 72/72 passed，pip check 通过。启动与周报验收不使用模型 Key。
+- 验收脚本修复：实际运行暴露本机代理 502 和重复打开 httpx Client；改为显式直连与上下文管理器后 prepare/verify 通过；SPA fallback 改为严格断言 200/HTML/root。
+- Final: Ruling: 保留当前功能分支、本地提交与工作目录，不触发合并/推送菜单或清理 — 用户授权本地实现并要求禁止批量删除；代价是远程发布及合并仍需后续安排。
+- Final: minor (deferred): 部署截图中，带长串无空格验收标记的周报标题会在侧栏略微越界；不影响保存、读取与隔离，后续补强文本换行。
+- 保留已有环境、运行数据、独立验收容器及日志，没有批量删除。

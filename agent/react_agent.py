@@ -13,14 +13,15 @@
 - 无法表达「这个参数只能是这几个值之一」，模型传错值只能在运行时报错。
 
 工具调用（tool calling）把「选哪个工具、传什么参数」交给模型的结构化输出能力，
-由 provider 保证 JSON schema 合法。解析失败这一整类问题从根上消失，
-工具签名也能是强类型的（见 `agent/tools/agent_tools.py`）。
+使用工具 schema 约束参数，减少对自由文本解析的依赖；模型仍可能给出
+无效参数，需要运行时校验和失败处理。工具签名见 `agent/tools/agent_tools.py`。
 
 关于记忆
 --------
-用 `MemorySaver` 按 `thread_id` 保存每个会话的消息序列，于是多轮追问
-（「那病假呢？」）能接上上一轮的上下文。`thread_id` 由入口传入：
-Streamlit 用会话级 ID，FastAPI 用客户端传入的会话 ID。
+checkpointer 按 `thread_id` 保存图状态，使多轮追问接上上一轮上下文。
+新版 FastAPI 注入 SQLite/PostgreSQL saver，服务端生成并校验所属会话的
+thread ID；客户端提交的业务会话 ID 不直接作为 thread ID。
+旧版 Streamlit 辅助演示使用模块级 `MemorySaver`，进程退出后不保留记忆。
 """
 
 from __future__ import annotations
