@@ -9,6 +9,9 @@ frontend/dist
 frontend/playwright-output
 runtime
 *.log
-chroma_db
+chroma_db*
 .agents
 .codex
+.claude
+.aws
+.superpowers

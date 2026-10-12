@@ -90,3 +90,5 @@ def test_startup_marks_stale_runs_and_processing_documents(v1_app, clients):
         with v1_app.state.database.session() as db:
             assert db.get(ChatRun,'stale').status == 'interrupted'
             assert db.get(DocumentVersion,'stale-version').error_code == 'INTERRUPTED'
+        history = clients['E1001'].get(f'/api/conversations/{conversation}/messages').json()['items']
+        assert history[-1]['status'] == 'interrupted'

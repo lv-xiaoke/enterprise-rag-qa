@@ -60,3 +60,38 @@ test('stop preserves cancelled history', async ({page}) => {
   await page.reload(); await page.locator('.conversation').first().click();
   await expect(page.getByText('已停止', {exact:true}).last()).toBeVisible();
 });
+
+test('first send locks before conversation creation completes', async ({page}) => {
+  await login(page,'E1001');
+  let creations = 0;
+  await page.route('**/api/conversations', async route => {
+    if (route.request().method() === 'POST') {creations++; await new Promise(resolve => setTimeout(resolve,400));}
+    await route.continue();
+  });
+  await page.getByLabel('输入问题').fill('第一条提问');
+  await page.getByLabel('输入问题').press('Enter');
+  await page.getByLabel('输入问题').press('Enter');
+  await expect(page.getByText('已完成',{exact:true}).last()).toBeVisible();
+  expect(creations).toBe(1);
+});
+
+test('report mutation locks editor selection until response finishes', async ({page}) => {
+  await login(page,'E1001'); await page.getByRole('link',{name:'我的周报'}).click();
+  await page.getByLabel('周报标题').fill('锁定测试 A'); await page.getByLabel('周报正文').fill('内容 A');
+  await page.getByRole('button',{name:'保存周报'}).click(); await expect(page.getByText('周报已保存')).toBeVisible();
+  await page.getByRole('button',{name:'新建周报'}).click();
+  await page.getByLabel('周报标题').fill('锁定测试 B'); await page.getByLabel('周报正文').fill('内容 B');
+  await page.getByRole('button',{name:'保存周报'}).click(); await expect(page.getByText('周报已保存')).toBeVisible();
+  await page.getByRole('button',{name:/锁定测试 A/}).click();
+  await page.route('**/api/weekly-reports/*',async route => {if(['PATCH','DELETE'].includes(route.request().method())) await new Promise(resolve=>setTimeout(resolve,500)); await route.continue();});
+  await page.getByRole('button',{name:'保存周报'}).click();
+  await expect(page.getByRole('button',{name:/锁定测试 B/})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'新建周报'})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'保存周报'})).toBeEnabled();
+  page.on('dialog',dialog=>dialog.accept());
+  await page.getByRole('button',{name:'删除',exact:true}).click();
+  await expect(page.getByRole('button',{name:/锁定测试 B/})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'新建周报'})).toBeEnabled();
+  await page.getByRole('button',{name:/锁定测试 B/}).click();
+  await expect(page.getByLabel('周报正文')).toHaveValue('内容 B');
+});

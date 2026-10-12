@@ -1,0 +1,8 @@
+node_modules
+dist
+playwright-output
+runtime
+.env
+.env.*
+.git
+*.log

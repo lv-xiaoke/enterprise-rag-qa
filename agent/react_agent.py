@@ -119,11 +119,11 @@ class ReactAgent:
         model = self.model if self.model is not None else _current_chat_model()
 
         if self._graph is None or self._graph_model is not model:
-            from langgraph.prebuilt import create_react_agent
+            from langgraph.prebuilt import create_react_agent, ToolNode
 
             self._graph = create_react_agent(
                 model=model,
-                tools=self.tools,
+                tools=ToolNode(self.tools, handle_tool_errors=False),
                 state_modifier=self._bounded_messages,
                 checkpointer=self.checkpointer,
             )
@@ -169,6 +169,23 @@ class ReactAgent:
 
     def _payload(self, query: str) -> dict:
         return {"messages": [{"role": "user", "content": query}]}
+
+    async def _recover_incomplete_tools(self, graph, config):
+        from langchain_core.messages import RemoveMessage
+        state = await graph.aget_state(config)
+        messages = state.values.get('messages', [])
+        answered = {m.tool_call_id for m in messages if isinstance(m, ToolMessage)}
+        incomplete = [m for m in messages if isinstance(m, AIMessage) and
+            any(call['id'] not in answered for call in m.tool_calls)]
+        if not incomplete:
+            return
+        call_ids = {call['id'] for m in incomplete for call in m.tool_calls}
+        remove_ids = {m.id for m in incomplete}
+        remove_ids.update(m.id for m in messages if isinstance(m, ToolMessage) and m.tool_call_id in call_ids)
+        # Roll back the interrupted tool round; retain human input and completed turns.
+        # Never fabricate successful tool output or automatically replay a side effect.
+        await graph.aupdate_state(config, {'messages':[RemoveMessage(id=key) for key in remove_ids]}, as_node='tools')
+        logger.info('checkpoint_recovered thread=%s removed_messages=%s', config['configurable']['thread_id'], len(remove_ids))
 
     def _translate(self, mode: str, chunk) -> Iterator[dict]:
         """把 (stream_mode, chunk) 翻译成事件。
@@ -250,6 +267,7 @@ class ReactAgent:
         """
         try:
             graph = self._get_graph()
+            await self._recover_incomplete_tools(graph, self._config(thread_id))
             async for mode, chunk in graph.astream(
                 self._payload(query),
                 config=self._config(thread_id),

@@ -15,7 +15,7 @@ React/TypeScript + FastAPI + LangGraph 的个人全栈项目，支持登录、�
 
 第一版按单进程部署；没有多副本控制、OCR、部门知识 ACL 或真实企业系统对接。Streamlit `app.py` 保留为本地辅助演示，不使用新版登录权限模型，不作为生产入口。
 
-## 本地运行（Python 3.11 / Node 22+）
+## 本地运行（Python 3.11 / Node 22.12+）
 
 首次从仓库根目录执行。保留你已有的 `.env`；需要时参考 `.env.example` 自行配置，切勿把真实 Key 和密码提交到 Git。
 

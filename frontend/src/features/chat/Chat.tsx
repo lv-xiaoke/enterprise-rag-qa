@@ -39,8 +39,8 @@ export function Chat() {
     catch (error) { setError(errorText(error)); }
     finally { control.current?.abort(); }
   }
-  async function load(id: string) {
-    if (busyRef.current) await stop();
+  async function load(id: string, cancelRunning = true) {
+    if (busyRef.current && cancelRunning) await stop();
     activeRef.current = id; setActive(id); setMessages([]); setTrace([]); setError('');
     try {
       const head = await api<Page<Message>>(`/conversations/${id}/messages?limit=100`);
@@ -49,26 +49,34 @@ export function Chat() {
       if (activeRef.current === id) { setMessages(page.items); setOlderOffset(offset); }
     } catch (error) { setError(errorText(error)); }
   }
-  async function create() {
-    if (busyRef.current) await stop();
-    const conversation = await api<Conversation>('/conversations', {method: 'POST', body: '{}'});
-    await refresh(); await load(conversation.id);
+  async function create(forSend = false, signal?: AbortSignal) {
+    if (busyRef.current && !forSend) await stop();
+    const conversation = await api<Conversation>('/conversations', {method: 'POST', body: '{}', signal});
+    await refresh(); await load(conversation.id, !forSend);
     return conversation.id;
   }
   async function send(event: FormEvent) {
     event.preventDefault();
     if (!prompt.trim() || busyRef.current) return;
+    busyRef.current = true; setBusy(true);
+    const controller = new AbortController(); control.current = controller; runId.current = null;
     setError('');
     const question = prompt.trim();
     let id = activeRef.current;
-    try { if (!id) id = await create(); } catch (error) { setError(errorText(error)); return; }
-    busyRef.current = true; setBusy(true); setPrompt(''); setTrace([]);
+    try {
+      if (!id) id = await create(true, controller.signal);
+      if (controller.signal.aborted) throw new DOMException('已停止', 'AbortError');
+    } catch (error) {
+      busyRef.current = false; setBusy(false);
+      if (!(error instanceof DOMException && error.name === 'AbortError')) setError(errorText(error));
+      return;
+    }
+    setPrompt(''); setTrace([]);
     const assistantId = crypto.randomUUID();
     setMessages(previous => [...previous,
       {id: crypto.randomUUID(), role: 'user', content: question, status: 'completed', sources: []},
       {id: assistantId, role: 'assistant', content: '', status: 'running', sources: []},
     ]);
-    const controller = new AbortController(); control.current = controller; runId.current = null;
     let ended = false;
     const update = (patch: Partial<Message> | ((message: Message) => Partial<Message>)) => {
       if (activeRef.current !== id) return;
@@ -106,7 +114,7 @@ export function Chat() {
     catch (error) { setError(errorText(error)); }
   }
   return <div className="chat-layout"><aside className="conversation-panel">
-    <button className="primary new-chat" onClick={() => create().catch(e => setError(errorText(e)))}><Plus size={17}/> 新建对话</button>
+    <button className="primary new-chat" disabled={busy} onClick={() => create().catch(e => setError(errorText(e)))}><Plus size={17}/> 新建对话</button>
     <p className="list-caption">最近对话 <span>{total}</span></p>
     {conversations.map(item => <button key={item.id} className={`conversation ${active === item.id ? 'selected' : ''}`} onClick={() => load(item.id)}><MessageSquare size={16}/><span>{item.title}</span></button>)}
     {total > conversations.length && <button className="text-button" onClick={async () => {try {

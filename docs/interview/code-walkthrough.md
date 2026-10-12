@@ -25,3 +25,5 @@
 3. 修改引用展示：从 `Source` 类型、Chat 的引用按钮、`GET /sources` 返回结构入手，显示版本号和页码；保留历史标志、键盘关闭和不可信 Markdown 的安全处理。
 
 验收学习成果：独立讲清一条请求；定位一个错误码的来源；不让 Agent 代写，自己完成上面一个小改动并解释测试。
+
+审查修复导读：`ReactAgent._recover_incomplete_tools` 回退未配对的中断工具轮；`ToolNode(handle_tool_errors=False)` 让基础设施异常进入脱敏失败路径；启动恢复补建 interrupted 消息。对照 `tests/test_review_regressions.py` 阅读修复前后的失败行为。

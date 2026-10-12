@@ -158,14 +158,18 @@ class KnowledgeService:
                     'historical': version_id != document.active_version_id or not document.enabled}
 
     async def start(self):
+        self.stopping = asyncio.Event()
         async def loop():
-            while True:
+            while not self.stopping.is_set():
                 await asyncio.to_thread(self.process_queued)
-                await asyncio.sleep(1)
+                try:
+                    await asyncio.wait_for(self.stopping.wait(), timeout=1)
+                except TimeoutError:
+                    pass
         self.worker = asyncio.create_task(loop())
 
     async def close(self):
         if self.worker:
-            self.worker.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self.worker
+            self.stopping.set()
+            await self.worker
+            self.worker = None

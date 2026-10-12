@@ -4,15 +4,16 @@ from contextlib import asynccontextmanager
 import logging
 import secrets
 import threading
+import time
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
-from sqlalchemy import text, update
+from sqlalchemy import text, update, select
 from backend.auth import hasher
 from backend.checkpoints import Checkpoints
 from backend.db import Database
-from backend.models import ChatRun, DocumentVersion
+from backend.models import ChatRun, DocumentVersion, Message
 from backend.settings import Settings
 from api.schemas import ChatRequest
 from api.routes.conversations import sse as _sse
@@ -25,17 +26,22 @@ def create_app(settings=None):
     @asynccontextmanager
     async def lifespan(app):
         with app.state.database.session() as db:
-            db.execute(update(ChatRun).where(ChatRun.status == 'running').values(status='interrupted'))
+            for run in db.scalars(select(ChatRun).where(ChatRun.status == 'running')):
+                run.status, run.error_code, run.ended_at = 'interrupted', 'INTERRUPTED', time.time()
+                db.add(Message(conversation_id=run.conversation_id, role='assistant',
+                    content='服务重启中断了本次生成，请重新提问。', status='interrupted'))
             db.execute(update(DocumentVersion).where(DocumentVersion.status == 'processing').values(
                 status='failed', error_code='INTERRUPTED'))
             db.commit()
         if app.state.knowledge is not None:
             await app.state.knowledge.start()
-        yield
-        if app.state.knowledge is not None:
-            await app.state.knowledge.close()
-        await app.state.checkpoints.close()
-        app.state.database.engine.dispose()
+        try:
+            yield
+        finally:
+            if app.state.knowledge is not None:
+                await app.state.knowledge.close()
+            await app.state.checkpoints.close()
+            app.state.database.engine.dispose()
 
     app = FastAPI(title='企业知识与事务助手', version='2.0.0', lifespan=lifespan)
     app.state.settings = settings

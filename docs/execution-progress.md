@@ -49,3 +49,23 @@
 - Ruling: 历史预算用 UTF-8 字节数加消息开销作为保守上界，保持完整工具配对 — 无需额外 tokenizer/下载且限制上下文；代价是可用上下文小于模型真实 token 容量。
 - Ruling: 本次先提交集成实现，再提交最终审查修复 — 多个模块共享身份/SSE/版本接口，集成通过后形成可审查基线；代价是提交粒度较原计划大。
 - Ruling: 静态 eval CLI 保留用于既有 RAG/Agent 比较，动态知识库由 API/浏览器验证 — 避免将不同数据链路混称端到端模型效果；代价是后续真实动态知识质量仍需专门评测。
+
+## Final review 与一次修复
+
+独立只读审查基线 11c90d8..56a1285；审查认为无 Critical，有五项 Important，无 Minor。按实际用户影响保留五项等级，均进入一次修复；未进行第二次重复审查。
+
+- Final: fixed 未完成工具 checkpoint 阻塞新提问 — test_restart_with_pending_tool_accepts_next_turn_and_preserves_history RED→GREEN；回退未完成工具轮，保留用户输入与已完成历史，不伪造工具成功、不自动重放副作用。
+- Final: fixed 工具异常泄露且运行被当作成功 — test_tool_infrastructure_exception_is_masked_and_run_failed RED→GREEN；ToolNode 不吞基础设施异常，由统一 API 返回脱敏 failed。
+- Final: fixed 服务重启历史看不到 interrupted — test_startup_marks_stale_runs_and_processing_documents RED→GREEN；同一恢复事务补建可展示消息。
+- Final: fixed 首次发送重复创建/运行 — Chromium first send locks before conversation creation completes RED→GREEN；await 前锁定，创建失败/取消释放。
+- Final: fixed 周报修改响应错绑当前编辑对象 — Chromium report mutation locks editor selection until response finishes RED→GREEN；保存/删除期间锁住对象切换。
+- Final: Ruling: 线程退出问题由审查暂未定级升级为 Important — 显式屏障测试证明 close 提前返回会允许底层写入越过关闭点，因此修复并等待线程完成；代价是慢 embedding 调用会延长正常关机。
+- Final: fixed 入库线程退出 — test_knowledge_close_waits_for_active_ingestion_thread RED→GREEN。
+- Final: Ruling: 真实模型质量、费用保持未实测 — 不自动使用未知用户 Key 产生费用；代价是需后续真实质量评测。
+- Final: Ruling: 第一版交付本地运行，云端目标未提供 — 不推送或发布到未知目标；代价是当前没有公网演示地址。
+- Final: Ruling: 多进程控制、部门 ACL、OCR 与物理回收维持已确认排除范围 — 与第一版单进程和保留历史文件一致；代价是不能宣称这些扩展能力。
+- 审查暂不定级的串行查询等待沿用前述 BM25 快照裁决，无新隐藏例外。
+- Final suite: 后端 71/71 passed (22.80s，含 PostgreSQL)；Chromium 5/5 passed (37.5s)。无 deferred minors。
+
+- Final suite（追加真实 API 重启路径）：72/72 passed (23.76s)，真实 PostgreSQL；前端 3/3、build 通过；Chromium 5/5。
+- 容器进展：官方 Node/Nginx 拉取重试成功，最终前端 Linux 镜像构建成功；后端首次依赖下载进行中。
