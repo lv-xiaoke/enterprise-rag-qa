@@ -1,5 +1,7 @@
 # 五分钟演示脚本
 
+> 项目一升级后的 Streamlit 演示与 Agent 边界说明见 [项目一讲解与七个演示](project-one-explainer.md)。下文是保留的 React 全栈演示。
+
 准备：按 README 完成迁移和初始化，设置自己的演示密码与模型 Key；用两个独立浏览器配置登录 admin、E1001/E1002。使用 `data/enterprise` 的制度文本上传，普通账号不会显示管理入口。未配置模型时可运行 Playwright 验收替身，演示时必须说明模型替身的范围。
 
 1. 管理员上传 `hr_leave_policy.txt`，看到等待/处理完成。说明无文本 PDF 与 UTF-8 错误会显示失败，不自动替换有效旧版。

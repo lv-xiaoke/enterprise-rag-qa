@@ -20,10 +20,10 @@ def load_history(api):
     st.session_state.runs = api.list_runs(cid) if cid else []
 
 
-def trace(events):
+def trace(events, fold=True):
     if not events:
         return
-    with st.expander('工具执行过程'):
+    with st.expander('工具执行过程') if fold else st.container():
         for event in events:
             name = event.get('name', event.get('tool_name',''))
             st.write(f"{name} · {event.get('status', event.get('type',''))}")
@@ -104,7 +104,7 @@ def chat(api):
         with st.expander('历史运行记录'):
             for run in st.session_state.runs:
                 st.caption(f"{run['id']} · {run['status']}")
-                trace(run.get('tool_events',[]))
+                trace(run.get('tool_events',[]),fold=False)
     prompt = st.chat_input('例如：查我的报销状态，并告诉我下一步怎么处理')
     if prompt:
         if not st.session_state.conversation_id:
@@ -135,7 +135,6 @@ def chat(api):
             trace(steps)
         load_history(api)
         st.session_state.run_id = None
-        st.rerun()
 
 
 def reports(api):
@@ -164,12 +163,19 @@ def main():
         if st.session_state.user is None:
             st.title('登录企业智能体助手')
             with st.form('login'):
-                username = st.text_input('账号')
-                password = st.text_input('密码',type='password')
-                submit = st.form_submit_button('登录')
-            if submit:
-                st.session_state.user = api.login(username,password)
-                st.rerun()
+                st.text_input('账号',key='login_username')
+                st.text_input('密码',type='password',key='login_password')
+                def login():
+                    try:
+                        st.session_state.user = api.login(st.session_state.login_username,st.session_state.login_password)
+                        st.session_state.pop('login_error',None)
+                    except ApiError as exc:
+                        st.session_state.login_error = str(exc)
+                    finally:
+                        st.session_state.login_password = ''
+                st.form_submit_button('登录',on_click=login)
+            if st.session_state.get('login_error'):
+                st.error(st.session_state.login_error)
             return
         st.session_state.user = api.me()
         sidebar(api)

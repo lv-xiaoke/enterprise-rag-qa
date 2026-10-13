@@ -1,4 +1,14 @@
-# 知序 · 企业知识与事务 AI 助手
+# 项目一 · LangGraph 智能体业务助手
+
+当前升级重点是 **Streamlit + LangGraph 的 Agent 可靠性**：可信登录、缺参追问、多步骤工具任务、本人数据权限、会话恢复、工具轨迹和执行预算。已有 React 工作台与部署能力保留。
+
+先读 [项目一讲解与演示](docs/interview/project-one-explainer.md)、[专项评测](docs/project-one-agent-evaluation.md) 和 [升级记录](docs/project-one-progress.md)。
+
+项目一启动：沿用下方 Python 环境、数据库迁移和 seed 步骤，后端执行 `python -m backend.serve`；另一终端激活同一环境后执行 `python -m streamlit run app.py`，访问 `http://localhost:8501`。`API_BASE_URL` 默认 `http://127.0.0.1:8000`；Streamlit 服务端发送的 `APP_ORIGIN` 必须与后端配置一致（默认 `http://127.0.0.1:5173`），无需为 Streamlit 浏览器端关闭 CSRF。
+
+从旧版升级先执行 `python -m alembic upgrade head`，新增工具轨迹字段；迁移已用独立 SQLite 验证保留旧会话和消息，不自动改动已有 runtime。管理员在 Streamlit 上传制度文档，员工账号查询本人数据；周报草稿经编辑和确认后保存。
+
+## 保留的全栈能力
 
 React/TypeScript + FastAPI + LangGraph 的个人全栈项目，支持登录、流式问答、文档版本管理、本人模拟业务查询和周报编辑保存。由 AI 辅助开发，学习与面试材料见 [代码导读](docs/interview/code-walkthrough.md)。
 
@@ -13,7 +23,7 @@ React/TypeScript + FastAPI + LangGraph 的个人全栈项目，支持登录、�
 - Chroma 向量 + BM25/RRF 混合检索，两路只使用同一有效版本集合。
 - 周报草稿由用户编辑确认后保存；个人查询权限由工具代码校验。
 
-第一版按单进程部署；没有多副本控制、OCR、部门知识 ACL 或真实企业系统对接。Streamlit `app.py` 保留为本地辅助演示，不使用新版登录权限模型，不作为生产入口。
+第一版按单进程部署；没有多副本控制、OCR、部门知识 ACL 或真实企业系统对接。Streamlit `app.py` 现已复用同一认证 API 与持久化业务 Agent 图；旧版静态 Python Agent 仅保留实验兼容用途。
 
 ## 本地运行（Python 3.11 / Node 22.12+）
 

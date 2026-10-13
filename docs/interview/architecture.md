@@ -1,5 +1,7 @@
 # 架构讲解
 
+> 当前项目一使用 Streamlit 与显式业务图，优先阅读 [项目一讲解](project-one-explainer.md)。下文保留此前 React 全栈版本的架构资料，不作为本轮新增能力的完整说明。
+
 ## 一分钟介绍
 
 这是我用 AI 辅助实现的个人项目：企业知识与事务助手。前端使用 React 和 TypeScript，后端使用 FastAPI，AI 编排使用 LangGraph。员工可以登录、查询知识库和本人模拟业务数据，把生成的周报编辑保存；管理员可以上传、更新、停用知识文档。业务数据库与 Agent checkpoint 使用 PostgreSQL，向量保存在 Chroma。

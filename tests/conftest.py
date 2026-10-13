@@ -5,7 +5,10 @@ import pytest
 
 
 @pytest.fixture
-def v1_app(tmp_path):
+def v1_app(tmp_path, monkeypatch):
+    # A missed model double must fail closed, never charge an existing local account.
+    monkeypatch.setenv('DEEPSEEK_API_KEY', '')
+    monkeypatch.setenv('DASHSCOPE_API_KEY', '')
     from api.server import create_app
     from backend.settings import Settings
     from backend.seed import seed_database

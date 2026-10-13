@@ -73,6 +73,8 @@ def _build_deepseek(
     _require_env("DEEPSEEK_API_KEY", "DeepSeek")
     return ChatDeepSeek(
         model=model or rag_conf.get("chat_model_name", "deepseek-chat"),
+        timeout=30,
+        max_retries=0,
         temperature=(
             rag_conf.get("chat_temperature", 0.3) if temperature is None else temperature
         ),
@@ -87,6 +89,8 @@ def _build_dashscope_chat(
     _require_env("DASHSCOPE_API_KEY", "DashScope")
     return ChatTongyi(
         model=model or rag_conf.get("chat_model_name", "qwen-plus"),
+        max_retries=1,
+        model_kwargs={'request_timeout':30},
         temperature=(
             rag_conf.get("chat_temperature", 0.3) if temperature is None else temperature
         ),
