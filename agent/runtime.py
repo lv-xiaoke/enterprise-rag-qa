@@ -19,6 +19,8 @@ class RunContext:
     tool_events: list = field(default_factory=list)
     intent: dict = field(default_factory=dict)
     business_status: str = 'running'
+    read_jobs: list = field(default_factory=list)
+    event_sink: Any = None
 
 
 current_run: ContextVar[RunContext | None] = ContextVar('agent_run', default=None)

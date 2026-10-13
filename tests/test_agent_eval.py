@@ -34,3 +34,20 @@ def test_deterministic_eval_drives_real_authenticated_graph(tmp_path):
     assert output['summary']['n_turns']==2
     assert output['summary']['task_completed']==1
     assert all(row['actual']['tool_events'] for row in output['turns'])
+
+
+def test_scoring_does_not_join_denied_parameters_with_a_different_success():
+    from eval.agent_metrics import score_turn
+    trace = [
+        {'type':'tool_call','tool_call_id':'a','attempt':1,'name':'fetch_employee_records','args':{'query_type':'leave_balance'}},
+        {'type':'tool_result','tool_call_id':'a','attempt':1,'name':'fetch_employee_records','args':{'query_type':'leave_balance'},'status':'denied'},
+        {'type':'tool_call','tool_call_id':'b','attempt':1,'name':'fetch_employee_records','args':{'query_type':'reimbursement'}},
+        {'type':'tool_result','tool_call_id':'b','attempt':1,'name':'fetch_employee_records','args':{'query_type':'reimbursement'},'status':'ok'},
+        {'type':'tool_call','tool_call_id':'c','attempt':1,'name':'get_employee_id','args':{}},
+        {'type':'tool_result','tool_call_id':'c','attempt':1,'name':'get_employee_id','args':{},'status':'ok'}]
+    expected = {'tools':['get_employee_id','fetch_employee_records'],
+        'args':{'fetch_employee_records':{'query_type':'leave_balance'}},'status':'completed'}
+    row = score_turn(expected,{'http_status':200,'status':'completed','tool_events':trace})
+    assert not row['arguments_correct']
+    assert not row['dependencies_correct']
+    assert not row['task_completed']

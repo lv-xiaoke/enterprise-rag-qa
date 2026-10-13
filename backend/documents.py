@@ -132,18 +132,21 @@ class KnowledgeService:
                 return []
             titles = {row.id: row.title for row in rows}
             where = {'version_id': {'$in': active}}
-            raw = self.store.get(where=where, include=['documents', 'metadatas'])
-            from rag.vector_store import build_retriever
-            class SnapshotStore:
-                def get(_self, **kwargs):
-                    return raw
-                def similarity_search_with_score(_self, text, k):
-                    return self.store.similarity_search_with_score(text, k=k, filter=where)
-            docs = build_retriever(SnapshotStore(), k, 'hybrid').invoke(query)
-            return [{'document_id': d.metadata['document_id'], 'version_id': d.metadata['version_id'],
-                     'chunk_id': d.metadata['chunk_id'], 'title': titles[d.metadata['document_id']],
-                     'page': None if d.metadata.get('page', -1) < 0 else d.metadata['page'],
-                     'excerpt': d.page_content[:520]} for d in docs]
+            store = self.store
+            raw = store.get(where=where, include=['documents', 'metadatas'])
+        # Historical chunks are retained. Both branches use this version snapshot,
+        # while embedding/query work runs outside the document mutation lock.
+        from rag.vector_store import build_retriever
+        class SnapshotStore:
+            def get(_self, **kwargs):
+                return raw
+            def similarity_search_with_score(_self, text, k):
+                return store.similarity_search_with_score(text, k=k, filter=where)
+        docs = build_retriever(SnapshotStore(), k, 'hybrid').invoke(query)
+        return [{'document_id': d.metadata['document_id'], 'version_id': d.metadata['version_id'],
+                 'chunk_id': d.metadata['chunk_id'], 'title': titles[d.metadata['document_id']],
+                 'page': None if d.metadata.get('page', -1) < 0 else d.metadata['page'],
+                 'excerpt': d.page_content[:520]} for d in docs]
 
     def source(self, version_id, chunk_id):
         with self._lock, self.database.session() as db:

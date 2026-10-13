@@ -16,4 +16,17 @@
 - Ruling: 制度工具直接返回结构化检索证据，最终 respond 节点统一总结，省去工具内部第二次模型总结 — 成本：需在真实模型评测中验证引用与总结质量。
 - Ruling: 证据满足后进入无工具绑定的 respond 节点并增量输出；失败前不输出虚构成果 — 成本：第一次正文需等待前置工具完成。
 - 已发现并修复：页面模型配置绕过测试替身导致一次意外真实请求；API fixture 现禁用真实凭证，页面测试注入所有模型构造路径。该请求不计入质量结论。
-- 当前任务：整体验证及独立代码审查；未执行系统性真实模型评测、未改动既有 runtime 数据、未推送远程。
+- Final review: 独立只读审查发现 6 项 Important、无 Critical/Minor。审查范围 4059fef..e757f89；修复依照复现测试验证，没有启动第二轮审查。
+- Final: fixed 阻塞读与无界后台等待 — test_stalled_read_has_bounded_workers_and_does_not_block_another_pool、test_embedding_wait_does_not_hold_document_version_lock、test_timed_out_read_is_not_retried_and_cannot_publish_late_evidence RED→GREEN。
+- Final: fixed 当前问题/证据丢失 — test_final_context_pins_legal_long_question_and_actual_evidence、test_missing_or_oversized_evidence_cannot_keep_completion_flags RED→GREEN。
+- Final: fixed 退出失败后的关闭客户端 — test_streamlit_login_chat_history_and_confirmed_report[503] RED→GREEN。
+- Final: fixed 当前会话中断后不刷新 — test_unchanged_selected_conversation_refreshes_on_rerun RED→GREEN；增加刷新与停止仍在执行运行的入口。
+- Final: fixed 硬退出轨迹与业务状态不一致 — test_tool_start_is_durable_before_business_operation、test_restart_reconciles_unmatched_tool_and_business_status RED→GREEN；test_completed_tool_trace_survives_hard_process_exit_before_answer 通过。
+- Final: fixed 评测跨调用误关联 — test_scoring_does_not_join_denied_parameters_with_a_different_success RED→GREEN；按调用/尝试配对并检查前置顺序。
+- Final: fixed 取消后迟到轨迹写入覆盖 — test_late_trace_commit_cannot_overwrite_cancelled_run RED→GREEN，条件写入保护终态。
+- Final verification: 完整 Python 114 passed、1 skipped，45.78 秒；5 项 Chromium 回归通过；前端类型/3 项单测/build 通过；修正评分后 40 场景/46 轮全部达成预期。完整测试仍有依赖弃用告警。
+- Final live smoke: 两条纯虚构制度问题调用真实 DeepSeek 模型，均完成工具查询和流式回答；runtime/agent-eval/20261013-144903-a77f59/results.json。该样本只证明接口兼容，完整真实模型质量未评测。
+- Final: Ruling: Python 不能安全强杀线程，超时只读任务保留槽位直到结束，使用独立有界容量和不重试活跃后台任务来隔离故障 — 原因：避免无界排队和迟到结果污染 — 成本：依赖持续卡住时同类工具会明确返回繁忙，需要依赖恢复或重启。
+- Final: Ruling: 保留当前功能分支、本地提交和测试产物，不推送、不合并、不批量清理 — 用户选择原地实现且未要求远程集成 — 成本：远程发布另行安排。
+- Declined to judge: 完整真实模型分类、资料注入理解与事实质量、PostgreSQL 和真实供应商取消行为，当前证据不足；两条制度烟雾不能替代这些结论。
+- 最终状态：计划中的代码、确定性验收、迁移及讲解材料已交付；未改动既有运行数据，完整真实模型质量评测与 PostgreSQL 集成保留为明确未实测项。

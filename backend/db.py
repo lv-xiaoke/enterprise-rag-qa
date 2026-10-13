@@ -9,11 +9,14 @@ class Database:
     def __init__(self, url):
         options = {}
         if url.startswith('sqlite'):
-            options['connect_args'] = {'check_same_thread': False, 'timeout': 30}
+            options['connect_args'] = {'check_same_thread': False, 'timeout': 5}
             if ':memory:' in url:
                 options['poolclass'] = StaticPool
             else:
                 Path(url.split('///', 1)[1]).parent.mkdir(parents=True, exist_ok=True)
+        elif url.startswith('postgresql'):
+            options['connect_args'] = {'connect_timeout':10,
+                'options':'-c statement_timeout=10000 -c lock_timeout=5000'}
         self.engine = create_engine(url, pool_pre_ping=True, **options)
         if url.startswith('sqlite'):
             @event.listens_for(self.engine, 'connect')

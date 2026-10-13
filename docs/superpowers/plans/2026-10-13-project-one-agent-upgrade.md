@@ -1,6 +1,6 @@
 # 项目一：LangGraph 智能体业务助手 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. 本文是根据现有仓库整理的升级评审稿；本次仅制定计划，尚未开始实现。默认由当前执行者按顺序实施，不自动启动子智能体。
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. 本文是升级计划原稿；用户随后授权在当前功能分支直接实现。执行、审查修复及实际验收见 [执行记录](../../project-one-progress.md) 和 [专项验证](../../project-one-agent-evaluation.md)。完整真实模型质量评测与本次 PostgreSQL 集成仍为未实测项。
 
 **Goal:** 保留 Streamlit，让智能体在可信身份和会话范围内，正确选择工具、追问缺失信息、完成多步骤业务任务，并提供可复现的可靠性证据。
 
@@ -212,4 +212,4 @@ python -m eval.run_agent_eval --dataset eval/agent_cases.jsonl --mode live
 - 每次交付记录改动、验证命令、实际输出和剩余限制。已发现回归必须先修复，再进入依赖任务。
 - 如果范围扩大到注册、私有知识库产品、云端 HTTPS、备份体系或 React 新功能，单独列入项目二计划，不混入本轮关键路径。
 - 不为拆分项目删除或搬移现有 React、FastAPI、Docker、历史文档与运行数据。
-- 本计划基于 2026-10-13 仓库静态检查，尚未执行基线测试、实现新模块或运行真实模型专项评测。
+- 本计划初稿基于 2026-10-13 仓库静态检查；后续实现与验收以执行记录为准，不能把建议质量门槛视作已经达到的实测成绩。

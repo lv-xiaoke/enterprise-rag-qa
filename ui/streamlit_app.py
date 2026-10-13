@@ -18,6 +18,8 @@ def load_history(api):
     cid = st.session_state.conversation_id
     st.session_state.messages = api.list_messages(cid) if cid else []
     st.session_state.runs = api.list_runs(cid) if cid else []
+    active = [run for run in st.session_state.runs if run['status']=='running']
+    st.session_state.run_id = active[0]['id'] if active else None
 
 
 def trace(events, fold=True):
@@ -38,9 +40,14 @@ def sidebar(api):
     with st.sidebar:
         st.write(f"当前账号：{st.session_state.user['name']}")
         if st.button('退出登录'):
-            api.logout()
-            st.session_state.pop('api_client',None)
-            clear_identity(st.session_state)
+            try:
+                api.logout()
+            except ApiError:
+                st.session_state.login_notice = '退出请求未能完成，本地登录信息已清除。'
+            finally:
+                st.session_state.pop('api_client',None)
+                st.session_state.pop('conversation_picker',None)
+                clear_identity(st.session_state)
             st.rerun()
         conversations = api.list_conversations()
         if st.button('新建会话'):
@@ -58,6 +65,13 @@ def sidebar(api):
                 st.session_state.conversation_id = selected
                 load_history(api)
                 st.rerun()
+        if st.session_state.conversation_id and st.button('刷新会话状态'):
+            load_history(api)
+            st.rerun()
+        if st.session_state.run_id and st.button('停止当前生成'):
+            api.cancel(st.session_state.run_id)
+            load_history(api)
+            st.rerun()
         if st.session_state.conversation_id and st.button('清空当前会话'):
             api.clear_messages(st.session_state.conversation_id)
             load_history(api)
@@ -156,12 +170,14 @@ def reports(api):
 
 
 def main():
-    if 'user' not in st.session_state:
+    if 'user' not in st.session_state or st.session_state.pop('identity_reset',False):
         clear_identity(st.session_state)
     api = client()
     try:
         if st.session_state.user is None:
             st.title('登录企业智能体助手')
+            if st.session_state.get('login_notice'):
+                st.info(st.session_state.login_notice)
             with st.form('login'):
                 st.text_input('账号',key='login_username')
                 st.text_input('密码',type='password',key='login_password')
@@ -169,6 +185,7 @@ def main():
                     try:
                         st.session_state.user = api.login(st.session_state.login_username,st.session_state.login_password)
                         st.session_state.pop('login_error',None)
+                        st.session_state.pop('login_notice',None)
                     except ApiError as exc:
                         st.session_state.login_error = str(exc)
                     finally:
@@ -178,6 +195,7 @@ def main():
                 st.error(st.session_state.login_error)
             return
         st.session_state.user = api.me()
+        load_history(api)
         sidebar(api)
         chat_tab, report_tab = st.tabs(['智能体会话','本人周报'])
         with chat_tab:
@@ -185,12 +203,16 @@ def main():
         with report_tab:
             reports(api)
     except AuthenticationExpired:
-        clear_identity(st.session_state)
+        # Reset widget-owned draft values before widgets are instantiated on the next run.
+        st.session_state.identity_reset = True
         st.session_state.pop('conversation_picker',None)
         st.warning('登录已失效，请重新登录')
         st.rerun()
     except ApiError as exc:
         st.error(str(exc))
-        if exc.status == 409 and st.session_state.conversation_id:
-            load_history(api)
-            st.info('请求已处理或正在生成，已更新历史；未自动重复提交')
+        if st.session_state.conversation_id:
+            try:
+                load_history(api)
+                st.info('已更新服务端运行状态；未自动重复提交。可以刷新状态或停止仍在执行的生成。')
+            except ApiError:
+                st.info('服务暂时不可用，恢复后请刷新会话状态。')

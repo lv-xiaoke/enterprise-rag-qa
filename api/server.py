@@ -15,6 +15,7 @@ from backend.checkpoints import Checkpoints
 from backend.db import Database
 from backend.models import ChatRun, DocumentVersion, Message
 from backend.settings import Settings
+from backend.conversations import terminal_tool_events
 from api.schemas import ChatRequest
 from api.routes.conversations import sse as _sse
 
@@ -28,6 +29,8 @@ def create_app(settings=None):
         with app.state.database.session() as db:
             for run in db.scalars(select(ChatRun).where(ChatRun.status == 'running')):
                 run.status, run.error_code, run.ended_at = 'interrupted', 'INTERRUPTED', time.time()
+                run.business_status = 'interrupted'
+                run.tool_events = terminal_tool_events(run.tool_events,'interrupted','INTERRUPTED')
                 db.add(Message(conversation_id=run.conversation_id, role='assistant',
                     content='服务重启中断了本次生成，请重新提问。', status='interrupted'))
             db.execute(update(DocumentVersion).where(DocumentVersion.status == 'processing').values(

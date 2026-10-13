@@ -10,7 +10,7 @@ from api.dependencies import CurrentUser, pagination, require_csrf
 from api.schemas import ChatRequest, ConversationRequest
 from agent.runtime import RunContext, current_run
 from agent.tools.agent_tools import _current_employee
-from backend.conversations import finish_run, owned_conversation, reserve_run, serialize
+from backend.conversations import finish_run, owned_conversation, reserve_run, serialize, record_tool_event
 from backend.models import ChatRun, Conversation, Message, new_id
 
 router = APIRouter(tags=['会话'])
@@ -82,6 +82,10 @@ async def chat(conversation_id: str, body: ChatRequest, request: Request, user: 
                              top_k=body.top_k, temperature=body.temperature)
         from agent.execution import ExecutionBudget
         context.budget = ExecutionBudget(tool_timeout=state.settings.tool_timeout_seconds)
+        async def persist_event(event):
+            from agent.blocking_reads import DATABASE_READS
+            await DATABASE_READS.call(record_tool_event,state.database,run.id,event,context.intent,timeout=5)
+        context.event_sink = persist_event
         started = time.perf_counter()
         content, status, error_code, ttft = '', 'completed', None, None
         queue = asyncio.Queue(maxsize=128)
