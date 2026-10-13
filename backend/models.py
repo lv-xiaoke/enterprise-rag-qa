@@ -65,6 +65,9 @@ class ChatRun(Base):
     ttft_ms: Mapped[float | None] = mapped_column(Float)
     total_ms: Mapped[float | None] = mapped_column(Float)
     usage: Mapped[dict | None] = mapped_column(JSON)
+    tool_events: Mapped[list] = mapped_column(JSON, default=list)
+    intent: Mapped[dict] = mapped_column(JSON, default=dict)
+    business_status: Mapped[str] = mapped_column(String(30), default='running')
     __table_args__ = (UniqueConstraint('conversation_id', 'client_request_id'),)
 
 

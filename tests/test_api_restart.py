@@ -2,11 +2,12 @@ from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage
 from api.server import create_app
 from test_agent_stream import RecordingModel
+from test_agent_clarification import decision
 
 
 def test_real_api_checkpoint_path_preserves_history_across_app_restart(v1_app, monkeypatch):
     import model.factory
-    first_model = RecordingModel(script=[AIMessage(content='第一轮已保存')])
+    first_model = RecordingModel(script=[decision('chat'),AIMessage(content='第一轮已保存')])
     monkeypatch.setattr(model.factory, 'build_chat_model', lambda: first_model)
     with TestClient(v1_app) as first:
         csrf = first.get('/api/auth/csrf').json()['csrf_token']
@@ -16,7 +17,7 @@ def test_real_api_checkpoint_path_preserves_history_across_app_restart(v1_app, m
         response = first.post(f'/api/conversations/{conversation}/chat',json={'message':'记住我的项目代号 maple','client_request_id':'first'})
         assert '第一轮已保存' in response.text
         cookies = dict(first.cookies)
-    second_model = RecordingModel(script=[AIMessage(content='重启后继续')])
+    second_model = RecordingModel(script=[decision('chat'),AIMessage(content='重启后继续')])
     monkeypatch.setattr(model.factory, 'build_chat_model', lambda: second_model)
     second_app = create_app(v1_app.state.settings)
     with TestClient(second_app) as second:

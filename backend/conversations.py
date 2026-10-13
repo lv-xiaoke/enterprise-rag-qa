@@ -35,13 +35,16 @@ def reserve_run(database, lock, conversation_id, user_id, body):
         return run, conversation.thread_id
 
 
-def finish_run(database, run_id, content, status, sources, error_code, ttft_ms, usage):
+def finish_run(database, run_id, content, status, sources, error_code, ttft_ms, usage,
+               tool_events=None, intent=None, business_status=None):
     with database.session() as db:
         run = db.get(ChatRun, run_id)
         run.status, run.error_code = status, error_code
         run.ended_at = time.time()
         run.total_ms = (run.ended_at - run.started_at) * 1000
         run.ttft_ms, run.usage = ttft_ms, usage or None
+        run.tool_events, run.intent = tool_events or [], intent or {}
+        run.business_status = business_status or status
         db.add(Message(conversation_id=run.conversation_id, role='assistant', content=content,
                        status=status, sources=sources))
         db.commit()
