@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class StrictModel(BaseModel):
@@ -17,6 +17,18 @@ class ConversationRequest(StrictModel):
 class ChatRequest(StrictModel):
     message: str = Field(min_length=1, max_length=2000)
     client_request_id: str = Field(min_length=1, max_length=80)
+    model_name: str | None = None
+    temperature: float | None = Field(default=None, ge=0, le=1)
+    top_k: int = Field(default=3, ge=1, le=8)
+
+    @field_validator('model_name')
+    @classmethod
+    def allowed_model(cls, value):
+        if value is not None:
+            from model.factory import chat_model_choices
+            if value not in chat_model_choices():
+                raise ValueError('model is not allowed')
+        return value
 
 
 class ReportRequest(StrictModel):

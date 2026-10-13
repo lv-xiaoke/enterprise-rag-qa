@@ -12,6 +12,13 @@ class RunContext:
     knowledge: Any
     sources: list = field(default_factory=list)
     usage: dict = field(default_factory=dict)
+    top_k: int = 3
+    temperature: float | None = None
+    model: Any = None
+    budget: Any = None
+    tool_events: list = field(default_factory=list)
+    intent: dict = field(default_factory=dict)
+    business_status: str = 'running'
 
 
 current_run: ContextVar[RunContext | None] = ContextVar('agent_run', default=None)

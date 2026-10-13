@@ -51,14 +51,22 @@ def list_messages(conversation_id: str, request: Request, user: CurrentUser, pag
                 'total': db.scalar(select(func.count()).select_from(query.subquery()))}
 
 
-async def get_agent(app):
+async def get_agent(app, options=None):
+    if options is not None and (options.model_name is not None or options.temperature is not None):
+        from agent.react_agent import ReactAgent
+        from agent.business_agent import BusinessAgent
+        from model.factory import build_chat_model
+        # Test/injected agents remain injectable; production options never mutate shared clients.
+        if app.state.agent is None or isinstance(app.state.agent, ReactAgent):
+            return BusinessAgent(model=build_chat_model(model=options.model_name,
+                temperature=options.temperature), checkpointer=await app.state.checkpoints.get())
     if app.state.agent is None:
         async with app.state.agent_lock:
             if app.state.agent is None:
-                from agent.react_agent import ReactAgent
+                from agent.business_agent import BusinessAgent
                 from model.factory import build_chat_model
                 checkpoint = await app.state.checkpoints.get()
-                app.state.agent = ReactAgent(model=build_chat_model(), checkpointer=checkpoint)
+                app.state.agent = BusinessAgent(model=build_chat_model(), checkpointer=checkpoint)
     return app.state.agent
 
 
@@ -70,16 +78,24 @@ async def chat(conversation_id: str, body: ChatRequest, request: Request, user: 
     state.run_controls[run.id] = stop
 
     async def stream():
-        context = RunContext(user.id, user.employee_id, state.database, state.knowledge)
+        context = RunContext(user.id, user.employee_id, state.database, state.knowledge,
+                             top_k=body.top_k, temperature=body.temperature)
+        from agent.execution import ExecutionBudget
+        context.budget = ExecutionBudget(tool_timeout=state.settings.tool_timeout_seconds)
         started = time.perf_counter()
         content, status, error_code, ttft = '', 'completed', None, None
         queue = asyncio.Queue(maxsize=128)
+        trusted_errors = False
 
         async def produce():
+            nonlocal trusted_errors
             context_token = current_run.set(context)
             identity_token = _current_employee.set(user.employee_id)
             try:
-                agent = await get_agent(request.app)
+                agent = await get_agent(request.app, body)
+                from agent.business_agent import BusinessAgent
+                trusted_errors = isinstance(agent,BusinessAgent)
+                context.model = getattr(agent, 'model', None)
                 async for event in agent.astream_events(body.message, thread_id):
                     await queue.put(event)
             except Exception:
@@ -110,14 +126,18 @@ async def chat(conversation_id: str, body: ChatRequest, request: Request, user: 
                         break
                     kind = event['type']
                     if kind == 'error':
-                        status, error_code = 'failed', 'MODEL_ERROR'
-                        yield sse('error', {'code': error_code, 'message': '生成失败，请检查模型配置或稍后重试'})
+                        status = 'failed'
+                        # Only the trusted business adapter may expose its bounded public error codes.
+                        trusted = trusted_errors
+                        error_code = event.get('code','MODEL_ERROR') if trusted else 'MODEL_ERROR'
+                        message = event.get('message','生成失败，请检查模型配置或稍后重试') if trusted else '生成失败，请检查模型配置或稍后重试'
+                        yield sse('error', {'code': error_code, 'message': message})
                         break
                     if kind == 'token':
                         content += event.get('content', '')
                         if ttft is None:
                             ttft = (time.perf_counter() - started) * 1000
-                    if kind in {'token', 'tool_call', 'tool_result'}:
+                    if kind in {'token', 'tool_call', 'tool_result', 'tool_status'}:
                         yield sse(kind, {key: value for key, value in event.items() if key != 'type'})
         except TimeoutError:
             status, error_code = 'failed', 'TIMEOUT'
@@ -133,17 +153,33 @@ async def chat(conversation_id: str, body: ChatRequest, request: Request, user: 
                 if task:
                     with contextlib.suppress(asyncio.CancelledError):
                         await task
-            finish_run(state.database, run.id, content, status, context.sources, error_code, ttft, context.usage)
+            if status != 'completed':
+                context.business_status = status
+            elif context.business_status == 'running':
+                context.business_status = status
+            finish_run(state.database, run.id, content, status, context.sources, error_code, ttft, context.usage,
+                       context.tool_events, context.intent, context.business_status)
             state.run_controls.pop(run.id, None)
             log.info('chat_finished run=%s status=%s ttft_ms=%s', run.id, status, ttft)
         if context.sources:
             yield sse('sources', {'sources': context.sources})
-        yield sse('done', {'run_id': run.id, 'status': status})
+        yield sse('done', {'run_id': run.id, 'status': status, 'business_status':context.business_status})
 
     return StreamingResponse(stream(), media_type='text/event-stream', headers={
         'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no',
     })
 
+
+@router.get('/conversations/{conversation_id}/runs')
+def list_runs(conversation_id: str, request: Request, user: CurrentUser, page=Depends(pagination)):
+    limit,offset = page
+    with request.app.state.database.session() as db:
+        owned_conversation(db,conversation_id,user.id)
+        query = select(ChatRun).where(ChatRun.conversation_id==conversation_id)
+        rows = db.scalars(query.order_by(ChatRun.started_at.desc()).limit(limit).offset(offset)).all()
+        keys = ('id','status','business_status','intent','tool_events','error_code','started_at','ended_at','total_ms','usage')
+        return {'items':[serialize(row,keys) for row in rows],
+                'total':db.scalar(select(func.count()).select_from(query.subquery()))}
 
 @router.post('/chat-runs/{run_id}/cancel', dependencies=[Depends(require_csrf)])
 async def cancel(run_id: str, request: Request, user: CurrentUser):
